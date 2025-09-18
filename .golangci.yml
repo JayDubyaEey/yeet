@@ -5,6 +5,7 @@ run:
 linters:
   enable:
     - gofmt
+    - gofumpt
     - govet
     - errcheck
     - staticcheck
@@ -21,6 +22,8 @@ linters:
     - unused
 
 linters-settings:
+  gofmt:
+    simplify: true
   gocyclo:
     min-complexity: 10
   dupl:
