@@ -1,0 +1,31 @@
+# Environment files
+.env
+docker.env
+env.config.json
+
+# Binaries
+yeet
+/yeet
+*.exe
+
+# Go build artifacts
+*.o
+*.a
+*.so
+
+# Test artifacts
+*.test
+*.prof
+coverage.out
+coverage.html
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
