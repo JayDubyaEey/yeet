@@ -19,7 +19,6 @@ linters:
     - gosec
     - revive
     - unused
-
 linters-settings:
   gofmt:
     simplify: true

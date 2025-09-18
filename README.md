@@ -43,7 +43,7 @@ Yeet pulls secrets from Azure Key Vault and generates `.env` and `docker.env` fi
 
 - **Go 1.24+** (only for building from source)
   - Install: [Go Installation Guide](https://go.dev/doc/install)
-  - Note: Go 1.24 is the latest version with performance improvements
+  - Note: Uses Go 1.24 for the latest features and performance improvements
 
 ### Azure Requirements
 
