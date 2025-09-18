@@ -3,12 +3,12 @@ package envwriter
 import (
 	"bufio"
 	"fmt"
+	"github.com/JayDubyaEey/yeet/internal/config"
 	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
-	"github.com/JayDubyaEey/yeet/internal/config"
 )
 
 var envLineRegex = regexp.MustCompile(`^([A-Z_][A-Z0-9_]*)=`)
@@ -23,7 +23,7 @@ func WriteEnvFile(path string, vars map[string]string, header string) error {
 	}
 	tmpPath := tmp.Name()
 	defer os.Remove(tmpPath) // Clean up on any error
-	
+
 	// Write header
 	if header != "" {
 		if _, err := tmp.WriteString(header + "\n"); err != nil {
@@ -31,14 +31,14 @@ func WriteEnvFile(path string, vars map[string]string, header string) error {
 			return err
 		}
 	}
-	
+
 	// Sort keys for stable output
 	keys := make([]string, 0, len(vars))
 	for k := range vars {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
-	
+
 	// Write each var
 	for _, key := range keys {
 		value := vars[key]
@@ -48,19 +48,19 @@ func WriteEnvFile(path string, vars map[string]string, header string) error {
 			return err
 		}
 	}
-	
+
 	// Sync to disk
 	if err := tmp.Sync(); err != nil {
 		tmp.Close()
 		return err
 	}
 	tmp.Close()
-	
+
 	// Atomic rename
 	if err := os.Rename(tmpPath, path); err != nil {
 		return fmt.Errorf("failed to rename temp file: %w", err)
 	}
-	
+
 	return nil
 }
 
@@ -71,17 +71,17 @@ func quoteValue(value string) string {
 	if strings.ContainsAny(value, " \t\n\r#\"'") || strings.TrimSpace(value) != value {
 		needsQuotes = true
 	}
-	
+
 	if !needsQuotes {
 		return value
 	}
-	
+
 	// Escape quotes and newlines
 	escaped := strings.ReplaceAll(value, "\\", "\\\\")
 	escaped = strings.ReplaceAll(escaped, "\"", "\\\"")
 	escaped = strings.ReplaceAll(escaped, "\n", "\\n")
 	escaped = strings.ReplaceAll(escaped, "\r", "\\r")
-	
+
 	return fmt.Sprintf("\"%s\"", escaped)
 }
 
@@ -95,37 +95,37 @@ func ReadKeyValues(path string) (map[string]string, error) {
 		return nil, err
 	}
 	defer file.Close()
-	
+
 	vars := make(map[string]string)
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		line := scanner.Text()
 		line = strings.TrimSpace(line)
-		
+
 		// Skip comments and empty lines
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue
 		}
-		
+
 		// Extract key (we only care about keys for unmapped detection)
 		matches := envLineRegex.FindStringSubmatch(line)
 		if len(matches) > 1 {
 			vars[matches[1]] = "" // Value doesn't matter for our use case
 		}
 	}
-	
+
 	return vars, scanner.Err()
 }
 
 // MergeRetainUnknowns merges new values with existing, retaining unmapped keys
 func MergeRetainUnknowns(newVars, existingVars map[string]string, mappings map[string]config.Mapping) map[string]string {
 	result := make(map[string]string)
-	
+
 	// Add all new vars
 	for k, v := range newVars {
 		result[k] = v
 	}
-	
+
 	// Retain existing vars not in mappings
 	for k := range existingVars {
 		if _, inMappings := mappings[k]; !inMappings {
@@ -135,7 +135,7 @@ func MergeRetainUnknowns(newVars, existingVars map[string]string, mappings map[s
 			}
 		}
 	}
-	
+
 	return result
 }
 
