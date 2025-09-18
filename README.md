@@ -149,7 +149,3 @@ yeet fetch --help
 - `2` - Validation error
 - `3` - Authentication error
 - `4` - Secret not found
-
-## License
-
-MIT
