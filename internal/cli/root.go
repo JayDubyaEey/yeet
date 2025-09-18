@@ -5,9 +5,10 @@ import (
 	"os"
 	"runtime"
 
+	"github.com/spf13/cobra"
+
 	"github.com/JayDubyaEey/yeet/internal/ui"
 	"github.com/JayDubyaEey/yeet/pkg/version"
-	"github.com/spf13/cobra"
 )
 
 var (
@@ -49,7 +50,7 @@ func newRootCmd() *cobra.Command {
 // Execute runs the CLI
 func Execute() {
 	if err := newRootCmd().Execute(); err != nil {
-		ui.Error(err.Error())
+		ui.Error("%s", err.Error())
 		os.Exit(1)
 	}
 }
