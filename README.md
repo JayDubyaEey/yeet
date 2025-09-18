@@ -19,7 +19,7 @@ Yeet pulls secrets from Azure Key Vault and generates `.env` and `docker.env` fi
 
 ## Prerequisites
 
-- Go 1.21+ (for building from source)
+- Go 1.22+ (for building from source)
 - Azure CLI installed and configured
 - Access to an Azure Key Vault with required secrets
 
