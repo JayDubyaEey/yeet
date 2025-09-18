@@ -5,9 +5,9 @@ import (
 	"os"
 	"runtime"
 
-	"github.com/spf13/cobra"
 	"github.com/JayDubyaEey/yeet/internal/ui"
 	"github.com/JayDubyaEey/yeet/pkg/version"
+	"github.com/spf13/cobra"
 )
 
 var (
@@ -19,9 +19,9 @@ var (
 
 func newRootCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "yeet",
-		Short: "Yeet envs from Azure Key Vault into .env and docker.env",
-		Long:  "Yeet pulls secrets from Azure Key Vault and generates .env and docker.env for local dev and docker.",
+		Use:           "yeet",
+		Short:         "Yeet envs from Azure Key Vault into .env and docker.env",
+		Long:          "Yeet pulls secrets from Azure Key Vault and generates .env and docker.env for local dev and docker.",
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
@@ -53,4 +53,3 @@ func Execute() {
 		os.Exit(1)
 	}
 }
-

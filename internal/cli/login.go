@@ -2,9 +2,9 @@ package cli
 
 import (
 	"context"
-	"github.com/spf13/cobra"
 	"github.com/JayDubyaEey/yeet/internal/provider/azcli"
 	"github.com/JayDubyaEey/yeet/internal/ui"
+	"github.com/spf13/cobra"
 )
 
 func newLoginCmd() *cobra.Command {
@@ -42,4 +42,3 @@ func newLogoutCmd() *cobra.Command {
 	}
 	return cmd
 }
-

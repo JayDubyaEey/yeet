@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/spf13/cobra"
 	"github.com/JayDubyaEey/yeet/internal/config"
 	"github.com/JayDubyaEey/yeet/internal/provider/azcli"
 	"github.com/JayDubyaEey/yeet/internal/ui"
+	"github.com/spf13/cobra"
 )
 
 func newValidateCmd() *cobra.Command {
@@ -41,7 +41,9 @@ func newValidateCmd() *cobra.Command {
 			if len(missing) > 0 {
 				sort.Strings(missing)
 				ui.Error("missing %d secrets in vault %s:", len(missing), vault)
-				for _, m := range missing { ui.Error("  - %s", m) }
+				for _, m := range missing {
+					ui.Error("  - %s", m)
+				}
 				return fmt.Errorf("missing %d secrets", len(missing))
 			}
 			ui.Success("validation passed: all secrets exist in %s", vault)
@@ -50,4 +52,3 @@ func newValidateCmd() *cobra.Command {
 	}
 	return cmd
 }
-

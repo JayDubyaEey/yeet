@@ -2,19 +2,19 @@ package ui
 
 import (
 	"fmt"
-	"os"
 	"github.com/fatih/color"
+	"os"
 )
 
 var (
 	noColor bool
 	verbose bool
-	
+
 	infoPrefix    = "ℹ "
 	warnPrefix    = "⚠ "
 	successPrefix = "✔ "
 	errorPrefix   = "✖ "
-	
+
 	infoColor    = color.New(color.FgCyan)
 	warnColor    = color.New(color.FgYellow)
 	successColor = color.New(color.FgGreen)
@@ -25,7 +25,7 @@ var (
 func Setup(disableColor, verboseMode bool) {
 	noColor = disableColor || os.Getenv("NO_COLOR") != ""
 	verbose = verboseMode
-	
+
 	if noColor {
 		color.NoColor = true
 		// Use ASCII fallbacks

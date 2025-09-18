@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/spf13/cobra"
 	"github.com/JayDubyaEey/yeet/internal/config"
 	"github.com/JayDubyaEey/yeet/internal/provider/azcli"
 	"github.com/JayDubyaEey/yeet/internal/ui"
+	"github.com/spf13/cobra"
 )
 
 func newListCmd() *cobra.Command {
@@ -32,11 +32,17 @@ func newListCmd() *cobra.Command {
 			if err := prov.EnsureLoggedIn(context.Background()); err != nil {
 				return fmt.Errorf("not logged in to Azure CLI: %w (run: yeet login)", err)
 			}
-			type row struct { Env string `json:"env"`; Secret string `json:"secret"`; Exists bool `json:"exists"` }
+			type row struct {
+				Env    string `json:"env"`
+				Secret string `json:"secret"`
+				Exists bool   `json:"exists"`
+			}
 			rows := make([]row, 0, len(cfg.Mappings))
 			for envKey, mapping := range cfg.Mappings {
 				exists, err := prov.SecretExists(cmd.Context(), vault, mapping.Secret)
-				if err != nil { return err }
+				if err != nil {
+					return err
+				}
 				rows = append(rows, row{Env: envKey, Secret: mapping.Secret, Exists: exists})
 			}
 			sort.Slice(rows, func(i, j int) bool { return rows[i].Env < rows[j].Env })
@@ -46,11 +52,21 @@ func newListCmd() *cobra.Command {
 				return nil
 			}
 			for _, r := range rows {
-				if existsOnly && !r.Exists { continue }
-				if missingOnly && r.Exists { continue }
+				if existsOnly && !r.Exists {
+					continue
+				}
+				if missingOnly && r.Exists {
+					continue
+				}
 				status := "missing"
-				if r.Exists { status = "exists" }
-				if r.Exists { ui.Success("%s -> %s [%s]", r.Env, r.Secret, status) } else { ui.Warn("%s -> %s [%s]", r.Env, r.Secret, status) }
+				if r.Exists {
+					status = "exists"
+				}
+				if r.Exists {
+					ui.Success("%s -> %s [%s]", r.Env, r.Secret, status)
+				} else {
+					ui.Warn("%s -> %s [%s]", r.Env, r.Secret, status)
+				}
 			}
 			return nil
 		},
@@ -60,4 +76,3 @@ func newListCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&raw, "raw", false, "Output JSON for scripting")
 	return cmd
 }
-

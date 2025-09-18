@@ -21,7 +21,7 @@ type Config struct {
 
 // rawMapping helps parse JSON where value can be string or object
 type rawMapping struct {
-	KeyVaultName string                       `json:"keyVaultName"`
+	KeyVaultName string                     `json:"keyVaultName"`
 	Mappings     map[string]json.RawMessage `json:"mappings"`
 }
 
@@ -47,7 +47,7 @@ func Load(path string) (*Config, error) {
 	// Normalize mappings: string or object -> Mapping
 	for key, rawVal := range raw.Mappings {
 		var mapping Mapping
-		
+
 		// Try simple string first
 		var secretName string
 		if err := json.Unmarshal(rawVal, &secretName); err == nil {
@@ -58,7 +58,7 @@ func Load(path string) (*Config, error) {
 				return nil, fmt.Errorf("invalid mapping for %s: must be string or {secret, docker}", key)
 			}
 		}
-		
+
 		cfg.Mappings[key] = mapping
 	}
 

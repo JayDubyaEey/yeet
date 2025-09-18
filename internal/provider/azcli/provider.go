@@ -37,15 +37,15 @@ func (p *Provider) Login(ctx context.Context, tenant, subscription string) error
 	if tenant != "" {
 		args = append(args, "--tenant", tenant)
 	}
-	
+
 	cmd := exec.CommandContext(ctx, "az", args...)
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
-	
+
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("az login failed: %w (stderr: %s)", err, stderr.String())
 	}
-	
+
 	// Set subscription if provided
 	if subscription != "" {
 		cmd := exec.CommandContext(ctx, "az", "account", "set", "--subscription", subscription, "-o", "none")
@@ -53,7 +53,7 @@ func (p *Provider) Login(ctx context.Context, tenant, subscription string) error
 			return fmt.Errorf("failed to set subscription %s: %w", subscription, err)
 		}
 	}
-	
+
 	return nil
 }
 
@@ -67,16 +67,16 @@ func (p *Provider) Logout(ctx context.Context) error {
 func (p *Provider) GetSecret(ctx context.Context, vault, name string) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, p.timeout)
 	defer cancel()
-	
+
 	cmd := exec.CommandContext(ctx, "az", "keyvault", "secret", "show",
 		"--vault-name", vault,
 		"--name", name,
 		"-o", "json")
-	
+
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
-	
+
 	if err := cmd.Run(); err != nil {
 		if strings.Contains(stderr.String(), "SecretNotFound") ||
 			strings.Contains(stderr.String(), "(404)") {
@@ -84,14 +84,14 @@ func (p *Provider) GetSecret(ctx context.Context, vault, name string) (string, e
 		}
 		return "", fmt.Errorf("failed to get secret: %w (stderr: %s)", err, stderr.String())
 	}
-	
+
 	var result struct {
 		Value string `json:"value"`
 	}
 	if err := json.Unmarshal(stdout.Bytes(), &result); err != nil {
 		return "", fmt.Errorf("failed to parse secret response: %w", err)
 	}
-	
+
 	return result.Value, nil
 }
 
