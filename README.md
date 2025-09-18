@@ -41,8 +41,9 @@ Yeet pulls secrets from Azure Key Vault and generates `.env` and `docker.env` fi
 
 ### Build Dependencies
 
-- **Go 1.22+** (only for building from source)
+- **Go 1.24+** (only for building from source)
   - Install: [Go Installation Guide](https://go.dev/doc/install)
+  - Note: Go 1.24 is the latest version with performance improvements
 
 ### Azure Requirements
 
@@ -79,7 +80,7 @@ Download the Windows zip file from the releases page and extract `yeet.exe` to a
 ### From Source
 
 ```bash
-go install github.com/JayDubyaEey/yeet/cmd/yeet@latest
+go install github.com/JayDubyaEey/yeet/cmd@latest
 ```
 
 ### Build Locally
@@ -87,7 +88,7 @@ go install github.com/JayDubyaEey/yeet/cmd/yeet@latest
 ```bash
 git clone https://github.com/JayDubyaEey/yeet
 cd yeet
-go build -o yeet ./cmd/yeet
+go build -o yeet ./cmd/main.go
 sudo mv yeet /usr/local/bin/
 ```
 

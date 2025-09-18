@@ -7,7 +7,7 @@ before:
 
 builds:
   - id: yeet
-    main: ./cmd/yeet
+    main: ./cmd/main.go
     binary: yeet
     env:
       - CGO_ENABLED=0
