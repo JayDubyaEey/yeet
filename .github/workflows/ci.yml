@@ -89,7 +89,7 @@ jobs:
           GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build \
             -ldflags "-s -w -X github.com/JayDubyaEey/yeet/pkg/version.Version=ci-${{ github.sha }}" \
             -o yeet-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.goos == 'windows' && '.exe' || '' }} \
-            ./cmd/yeet
+            ./cmd
 
       - name: Test binary
         if: matrix.goos == 'linux' && matrix.goarch == 'amd64'
