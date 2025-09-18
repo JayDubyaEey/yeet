@@ -16,7 +16,7 @@ help:
 	@echo "  run        Run the binary"
 
 build:
-	go build $(LDFLAGS) -o $(BINARY_NAME) ./cmd/yeet
+	go build $(LDFLAGS) -o $(BINARY_NAME) ./cmd
 
 test:
 	go test -v ./...
