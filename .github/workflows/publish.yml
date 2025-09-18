@@ -52,7 +52,7 @@ jobs:
           fi
           go build -ldflags "-s -w -X github.com/JayDubyaEey/yeet/pkg/version.Version=${VERSION}" \
             -o yeet-${{ matrix.os }}-${{ matrix.arch }}${{ matrix.os == 'windows' && '.exe' || '' }} \
-            ./cmd/yeet
+            ./cmd
 
       - name: Upload binary as artifact
         uses: actions/upload-artifact@v4
