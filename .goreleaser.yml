@@ -1,0 +1,106 @@
+project_name: yeet
+
+before:
+  hooks:
+    - go mod tidy
+    - go test ./...
+
+builds:
+  - id: yeet
+    main: ./cmd/yeet
+    binary: yeet
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - windows
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+      - 386
+    ignore:
+      - goos: windows
+        goarch: arm64
+      - goos: darwin
+        goarch: 386
+    ldflags:
+      - -s -w -X github.com/JayDubyaEey/yeet/pkg/version.Version={{.Version}}
+
+archives:
+  - name_template: >-
+      {{ .ProjectName }}_
+      {{- .Version }}_
+      {{- .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+    format_overrides:
+      - goos: windows
+        format: zip
+    files:
+      - README.md
+      - LICENSE*
+      - env.config.json.example
+
+checksum:
+  name_template: 'checksums.txt'
+
+snapshot:
+  name_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  sort: asc
+  groups:
+    - title: 'Features'
+      regexp: "^.*feat[(\\w)]*:+.*$"
+      order: 0
+    - title: 'Bug fixes'
+      regexp: "^.*fix[(\\w)]*:+.*$"
+      order: 1
+    - title: 'Documentation'
+      regexp: "^.*docs[(\\w)]*:+.*$"
+      order: 2
+    - title: 'Other'
+      order: 999
+  filters:
+    exclude:
+      - '^test:'
+      - '^chore:'
+      - Merge pull request
+      - Merge branch
+
+release:
+  github:
+    owner: JayDubyaEey
+    name: yeet
+  name_template: "v{{.Version}}"
+  draft: false
+  prerelease: auto
+  mode: replace
+
+  header: |
+    ## Yeet v{{.Version}}
+    
+    Yeet pulls secrets from Azure Key Vault and generates `.env` and `docker.env` files.
+
+  footer: |
+    ---
+    
+    **Full Changelog**: https://github.com/JayDubyaEey/yeet/compare/{{ .PreviousTag }}...{{ .Tag }}
+    
+    ## Installation
+    
+    ### macOS/Linux
+    ```bash
+    # Download and extract (example for Linux x86_64)
+    curl -L https://github.com/JayDubyaEey/yeet/releases/download/{{ .Tag }}/yeet_{{ .Version }}_linux_x86_64.tar.gz | tar xz
+    sudo mv yeet /usr/local/bin/
+    ```
+    
+    ### Windows
+    Download the Windows zip file and extract `yeet.exe` to a directory in your PATH.
+    
+    ---
+    
+    **License**: This software is licensed under the GNU Affero General Public License v3.0 (AGPL-3.0).
