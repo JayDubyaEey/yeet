@@ -34,6 +34,20 @@ func Load(path string) (*Config, error) {
 		return nil, fmt.Errorf("failed to read config file %s: %w", path, err)
 	}
 
+	cfg, err := parseConfig(data, path)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := validateConfig(cfg); err != nil {
+		return nil, err
+	}
+
+	return cfg, nil
+}
+
+// parseConfig parses the JSON data into a Config struct
+func parseConfig(data []byte, path string) (*Config, error) {
 	var raw rawMapping
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return nil, fmt.Errorf("invalid JSON in %s: %w", path, err)
@@ -44,39 +58,59 @@ func Load(path string) (*Config, error) {
 		Mappings:     make(map[string]Mapping),
 	}
 
-	// Normalize mappings: string or object -> Mapping
 	for key, rawVal := range raw.Mappings {
-		var mapping Mapping
-
-		// Try simple string first
-		var secretName string
-		if err := json.Unmarshal(rawVal, &secretName); err == nil {
-			mapping.Secret = secretName
-		} else {
-			// Try complex object
-			if err := json.Unmarshal(rawVal, &mapping); err != nil {
-				return nil, fmt.Errorf("invalid mapping for %s: must be string or {secret, docker}", key)
-			}
+		mapping, err := parseMapping(key, rawVal)
+		if err != nil {
+			return nil, err
 		}
-
 		cfg.Mappings[key] = mapping
 	}
 
-	// Validate
-	if cfg.KeyVaultName == "" {
-		return nil, fmt.Errorf("keyVaultName is required")
-	}
-	if len(cfg.Mappings) == 0 {
-		return nil, fmt.Errorf("at least one mapping is required")
-	}
-	for key, mapping := range cfg.Mappings {
-		if !envVarRegex.MatchString(key) {
-			return nil, fmt.Errorf("invalid env var name: %s (must match ^[A-Z_][A-Z0-9_]*$)", key)
-		}
-		if mapping.Secret == "" {
-			return nil, fmt.Errorf("secret name cannot be empty for %s", key)
-		}
+	return cfg, nil
+}
+
+// parseMapping parses a single mapping from JSON
+func parseMapping(key string, rawVal json.RawMessage) (Mapping, error) {
+	var mapping Mapping
+
+	// Try simple string first
+	var secretName string
+	if err := json.Unmarshal(rawVal, &secretName); err == nil {
+		mapping.Secret = secretName
+		return mapping, nil
 	}
 
-	return cfg, nil
+	// Try complex object
+	if err := json.Unmarshal(rawVal, &mapping); err != nil {
+		return mapping, fmt.Errorf("invalid mapping for %s: must be string or {secret, docker}", key)
+	}
+
+	return mapping, nil
+}
+
+// validateConfig validates the configuration
+func validateConfig(cfg *Config) error {
+	if cfg.KeyVaultName == "" {
+		return fmt.Errorf("keyVaultName is required")
+	}
+	if len(cfg.Mappings) == 0 {
+		return fmt.Errorf("at least one mapping is required")
+	}
+	for key, mapping := range cfg.Mappings {
+		if err := validateMapping(key, mapping); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// validateMapping validates a single mapping
+func validateMapping(key string, mapping Mapping) error {
+	if !envVarRegex.MatchString(key) {
+		return fmt.Errorf("invalid env var name: %s (must match ^[A-Z_][A-Z0-9_]*$)", key)
+	}
+	if mapping.Secret == "" {
+		return fmt.Errorf("secret name cannot be empty for %s", key)
+	}
+	return nil
 }
