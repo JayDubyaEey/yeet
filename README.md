@@ -1,7 +1,8 @@
 [![CI](https://github.com/JayDubyaEey/yeet/actions/workflows/ci.yml/badge.svg)](https://github.com/JayDubyaEey/yeet/actions/workflows/ci.yml)
 [![Release](https://github.com/JayDubyaEey/yeet/actions/workflows/release.yml/badge.svg)](https://github.com/JayDubyaEey/yeet/actions/workflows/release.yml)
+[![Publish](https://github.com/JayDubyaEey/yeet/actions/workflows/publish.yml/badge.svg)](https://github.com/JayDubyaEey/yeet/actions/workflows/publish.yml)
+[![Go Report Card](https://goreportcard.com/badge/github.com/JayDubyaEey/yeet)](https://goreportcard.com/report/github.com/JayDubyaEey/yeet)
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
-
 ![Logo](logo.png)
 
 Yeet pulls secrets from Azure Key Vault and generates `.env` and `docker.env` files for local development and Docker environments.
@@ -176,6 +177,19 @@ yeet fetch --help
 - `2` - Validation error
 - `3` - Authentication error
 - `4` - Secret not found
+
+## GitHub Packages
+
+This project publishes releases to GitHub Packages:
+
+### Binary Artifacts
+
+Pre-built binaries are automatically built and attached to each GitHub Release. Additionally, binaries from recent builds are available as workflow artifacts with a 30-day retention period.
+
+Supported platforms:
+- Linux (amd64, arm64, 386)
+- macOS (amd64, arm64)
+- Windows (amd64)
 
 ## License
 
