@@ -67,10 +67,7 @@ func WriteEnvFile(path string, vars map[string]string, header string) error {
 // quoteValue adds quotes if the value contains special characters
 func quoteValue(value string) string {
 	// Check if quoting is needed
-	needsQuotes := false
-	if strings.ContainsAny(value, " \t\n\r#\"'") || strings.TrimSpace(value) != value {
-		needsQuotes = true
-	}
+	needsQuotes := strings.ContainsAny(value, " \t\n\r#\"'") || strings.TrimSpace(value) != value
 
 	if !needsQuotes {
 		return value
