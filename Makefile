@@ -30,7 +30,8 @@ lint:
 	golangci-lint run ./... || true
 
 fmt:
-	go fmt ./...
+	gofmt -s -w .
+	go mod tidy
 
 clean:
 	rm -f $(BINARY_NAME)
