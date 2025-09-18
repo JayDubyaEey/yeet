@@ -1,3 +1,5 @@
+![Logo](logo.png)
+
 # yeet 🚀
 
 [![CI](https://github.com/JayDubyaEey/yeet/actions/workflows/ci.yml/badge.svg)](https://github.com/JayDubyaEey/yeet/actions/workflows/ci.yml)
