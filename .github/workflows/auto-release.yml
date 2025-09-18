@@ -106,46 +106,8 @@ jobs:
         id: release_notes
         run: |
           LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
-          if [ -z "$LATEST_TAG" ]; then
-            COMMIT_RANGE="HEAD"
-          else
-            COMMIT_RANGE="$LATEST_TAG..HEAD"
-          fi
-          
-          # Generate release notes
-          {
-            echo "## What's Changed"
-            echo ""
-            
-            # Features
-            FEATURES=$(git log $COMMIT_RANGE --pretty=format:"- %s (%h)" --grep="^feat\|^feature" -i)
-            if [ ! -z "$FEATURES" ]; then
-              echo "### 🚀 Features"
-              echo "$FEATURES"
-              echo ""
-            fi
-            
-            # Bug fixes
-            FIXES=$(git log $COMMIT_RANGE --pretty=format:"- %s (%h)" --grep="^fix\|^bugfix" -i)
-            if [ ! -z "$FIXES" ]; then
-              echo "### 🐛 Bug Fixes"
-              echo "$FIXES"
-              echo ""
-            fi
-            
-            # Other changes
-            OTHER=$(git log $COMMIT_RANGE --pretty=format:"- %s (%h)" --invert-grep --grep="^feat\|^feature\|^fix\|^bugfix" -i --grep="^Merge pull request" --invert-grep)
-            if [ ! -z "$OTHER" ]; then
-              echo "### 📦 Other Changes"
-              echo "$OTHER"
-              echo ""
-            fi
-            
-            echo "**Full Changelog**: https://github.com/${{ github.repository }}/compare/$LATEST_TAG...${{ steps.version.outputs.version }}"
-          } > release_notes.md
-          
-          # Output release notes for the release
-          cat release_notes.md >> $GITHUB_STEP_SUMMARY
+          echo "Latest tag: $LATEST_TAG"
+          echo "New version: ${{ steps.version.outputs.version }}"
 
       - name: Create tag
         run: |
@@ -158,13 +120,7 @@ jobs:
         uses: goreleaser/goreleaser-action@v5
         with:
           version: latest
-          args: release --clean --release-notes=release_notes.md
+          args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Upload release notes
-        uses: actions/upload-artifact@v4
-        with:
-          name: release-notes-${{ steps.version.outputs.version }}
-          path: release_notes.md
-          retention-days: 90
