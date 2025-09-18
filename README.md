@@ -17,9 +17,36 @@ Yeet pulls secrets from Azure Key Vault and generates `.env` and `docker.env` fi
 
 ## Prerequisites
 
-- Go 1.22+ (for building from source)
-- Azure CLI installed and configured
-- Access to an Azure Key Vault with required secrets
+### Runtime Dependencies
+
+- **Azure CLI** (required) - Used for authentication and Key Vault access
+  - Install: [Azure CLI Installation Guide](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli)
+  - Version: 2.0.0 or higher recommended
+  - Must be authenticated (`az login`) with access to your Key Vault
+  
+  **Quick Install:**
+  ```bash
+  # Ubuntu/Debian
+  curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+  
+  # macOS
+  brew update && brew install azure-cli
+  
+  # Windows (PowerShell as Administrator)
+  winget install -e --id Microsoft.AzureCLI
+  ```
+
+### Build Dependencies
+
+- **Go 1.22+** (only for building from source)
+  - Install: [Go Installation Guide](https://go.dev/doc/install)
+
+### Azure Requirements
+
+- Azure subscription with an existing Key Vault
+- Appropriate RBAC permissions:
+  - `Key Vault Secrets User` role (minimum) for reading secrets
+  - `Key Vault Reader` role for listing secrets
 
 ## Installation
 
@@ -59,6 +86,24 @@ git clone https://github.com/JayDubyaEey/yeet
 cd yeet
 go build -o yeet ./cmd/yeet
 sudo mv yeet /usr/local/bin/
+```
+
+## Verify Dependencies
+
+Before using yeet, ensure all dependencies are properly installed:
+
+```bash
+# Check if Azure CLI is installed
+az --version
+
+# Check if you're logged into Azure
+az account show
+
+# If not logged in, authenticate with Azure
+az login
+
+# List your Key Vaults to verify access
+az keyvault list -o table
 ```
 
 ## Configuration
@@ -175,6 +220,57 @@ yeet fetch --help
 - `2` - Validation error
 - `3` - Authentication error
 - `4` - Secret not found
+
+## Troubleshooting
+
+### Azure CLI not found
+
+If you get an error about Azure CLI not being found:
+
+1. Verify Azure CLI is installed:
+   ```bash
+   which az
+   ```
+
+2. If not found, install it using the platform-specific instructions in the Prerequisites section.
+
+3. Ensure Azure CLI is in your PATH:
+   ```bash
+   export PATH=$PATH:/usr/local/bin
+   ```
+
+### Authentication errors
+
+If you get authentication errors:
+
+1. Check your current Azure login status:
+   ```bash
+   az account show
+   ```
+
+2. Re-authenticate if needed:
+   ```bash
+   az login
+   ```
+
+3. Set the correct subscription:
+   ```bash
+   az account set --subscription "Your Subscription Name"
+   ```
+
+### Key Vault access errors
+
+1. Verify you have access to the Key Vault:
+   ```bash
+   az keyvault show --name your-keyvault-name
+   ```
+
+2. Check your permissions:
+   ```bash
+   az role assignment list --assignee $(az account show --query user.name -o tsv) --scope /subscriptions/YOUR_SUB_ID/resourceGroups/YOUR_RG/providers/Microsoft.KeyVault/vaults/YOUR_KV
+   ```
+
+3. Ensure you have at least `Key Vault Secrets User` role.
 
 ## GitHub Packages
 
