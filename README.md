@@ -10,7 +10,6 @@ Yeet pulls secrets from Azure Key Vault and generates `.env` and `docker.env` fi
 - 🔐 Pulls secrets from Azure Key Vault using Azure CLI authentication
 - 📁 Generates both `.env` and `docker.env` files
 - 🔄 Supports simple and complex mappings with docker-specific overrides
-- 🎨 Colorful terminal output with status indicators
 - ⚡ Concurrent secret fetching for speed
 - 🔍 Validates configuration and checks secret existence
 - ⚠️  Warns about unmapped environment variables
