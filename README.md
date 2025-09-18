@@ -2,7 +2,6 @@
 [![Auto Release](https://github.com/JayDubyaEey/yeet/actions/workflows/auto-release.yml/badge.svg)](https://github.com/JayDubyaEey/yeet/actions/workflows/auto-release.yml)
 [![Release](https://github.com/JayDubyaEey/yeet/actions/workflows/release.yml/badge.svg)](https://github.com/JayDubyaEey/yeet/actions/workflows/release.yml)
 [![Publish](https://github.com/JayDubyaEey/yeet/actions/workflows/publish.yml/badge.svg)](https://github.com/JayDubyaEey/yeet/actions/workflows/publish.yml)
-[![Go Report Card](https://goreportcard.com/badge/github.com/JayDubyaEey/yeet)](https://goreportcard.com/report/github.com/JayDubyaEey/yeet)
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 
 ![Logo](logo.png)
@@ -288,48 +287,6 @@ Supported platforms:
 - Linux (amd64, arm64, 386)
 - macOS (amd64, arm64)
 - Windows (amd64)
-
-## Release Process
-
-This project uses automated semantic versioning and releases:
-
-### Automatic Releases
-
-When code changes are pushed to the `main` branch, the auto-release workflow will:
-
-1. Check for code changes (ignoring documentation-only changes)
-2. Determine the next version based on commit messages:
-   - `fix:` or `bugfix:` commits → Patch version bump (0.0.X)
-   - `feat:` or `feature:` commits → Minor version bump (0.X.0)
-   - `BREAKING CHANGE:` or `breaking:` commits → Major version bump (X.0.0)
-3. Generate release notes automatically from commit messages
-4. Create a new GitHub release with pre-built binaries
-
-### Commit Message Convention
-
-To trigger automatic version bumps, use these commit message prefixes:
-
-```bash
-# Bug fixes (patch version: 1.0.0 → 1.0.1)
-git commit -m "fix: correct env file parsing issue"
-
-# New features (minor version: 1.0.0 → 1.1.0)
-git commit -m "feat: add support for nested configurations"
-
-# Breaking changes (major version: 1.0.0 → 2.0.0)
-git commit -m "breaking: change configuration file format"
-# or
-git commit -m "feat: new API\n\nBREAKING CHANGE: config format changed"
-```
-
-### Manual Releases
-
-You can also create releases manually by pushing a tag:
-
-```bash
-git tag -a v1.2.3 -m "Release v1.2.3"
-git push origin v1.2.3
-```
 
 ## License
 
