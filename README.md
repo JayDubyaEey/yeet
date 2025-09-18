@@ -1,5 +1,10 @@
 # yeet 🚀
 
+[![CI](https://github.com/JayDubyaEey/yeet/actions/workflows/ci.yml/badge.svg)](https://github.com/JayDubyaEey/yeet/actions/workflows/ci.yml)
+[![Release](https://github.com/JayDubyaEey/yeet/actions/workflows/release.yml/badge.svg)](https://github.com/JayDubyaEey/yeet/actions/workflows/release.yml)
+[![Go Report Card](https://goreportcard.com/badge/github.com/JayDubyaEey/yeet)](https://goreportcard.com/report/github.com/JayDubyaEey/yeet)
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
+
 Yeet pulls secrets from Azure Key Vault and generates `.env` and `docker.env` files for local development and Docker environments.
 
 ## Features
@@ -19,6 +24,29 @@ Yeet pulls secrets from Azure Key Vault and generates `.env` and `docker.env` fi
 - Access to an Azure Key Vault with required secrets
 
 ## Installation
+
+### Download Pre-built Binary (Recommended)
+
+Download the latest release for your platform from the [releases page](https://github.com/JayDubyaEey/yeet/releases).
+
+#### Linux/macOS
+```bash
+# Linux example (replace VERSION and ARCH as needed)
+curl -L https://github.com/JayDubyaEey/yeet/releases/download/vVERSION/yeet_VERSION_linux_x86_64.tar.gz | tar xz
+sudo mv yeet /usr/local/bin/
+
+# macOS example (Intel)
+curl -L https://github.com/JayDubyaEey/yeet/releases/download/vVERSION/yeet_VERSION_darwin_x86_64.tar.gz | tar xz
+sudo mv yeet /usr/local/bin/
+
+# macOS example (Apple Silicon)
+curl -L https://github.com/JayDubyaEey/yeet/releases/download/vVERSION/yeet_VERSION_darwin_arm64.tar.gz | tar xz
+sudo mv yeet /usr/local/bin/
+```
+
+#### Windows
+
+Download the Windows zip file from the releases page and extract `yeet.exe` to a directory in your PATH.
 
 ### From Source
 
@@ -149,3 +177,7 @@ yeet fetch --help
 - `2` - Validation error
 - `3` - Authentication error
 - `4` - Secret not found
+
+## License
+
+This project is licensed under the GNU Affero General Public License v3.0 (AGPL-3.0). See the [LICENSE](LICENSE) file for details.
