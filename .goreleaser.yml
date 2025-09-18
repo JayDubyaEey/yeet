@@ -51,22 +51,25 @@ snapshot:
 
 changelog:
   sort: asc
+  use: github
   groups:
-    - title: 'Features'
+    - title: '🚀 Features'
       regexp: "^.*feat[(\\w)]*:+.*$"
       order: 0
-    - title: 'Bug fixes'
+    - title: '🐛 Bug fixes'
       regexp: "^.*fix[(\\w)]*:+.*$"
       order: 1
-    - title: 'Documentation'
+    - title: '📖 Documentation'
       regexp: "^.*docs[(\\w)]*:+.*$"
       order: 2
-    - title: 'Other'
+    - title: '📦 Other'
       order: 999
   filters:
     exclude:
       - '^test:'
       - '^chore:'
+      - '^ci:'
+      - '^build:'
       - Merge pull request
       - Merge branch
 
