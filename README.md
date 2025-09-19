@@ -12,10 +12,12 @@ Yeet pulls secrets from Azure Key Vault and generates `.env` and `docker.env` fi
 
 - 🔐 Pulls secrets from Azure Key Vault using Azure CLI authentication
 - 📁 Generates both `.env` and `docker.env` files
+- 🚀 Run commands directly with secrets as environment variables (no files needed!)
 - 🔄 Supports simple and complex mappings with docker-specific overrides
 - ⚡ Concurrent secret fetching for speed
 - 🔍 Validates configuration and checks secret existence
 - ⚠️  Warns about unmapped environment variables
+- 🎯 Perfect for Makefiles and CI/CD pipelines
 
 ## Prerequisites
 
@@ -147,6 +149,21 @@ Create an `env.config.json` file in your project directory:
 yeet login
 # With specific tenant/subscription
 yeet login --tenant YOUR_TENANT --subscription YOUR_SUBSCRIPTION
+```
+
+### Run Commands with Secrets
+```bash
+# Run a command with secrets as environment variables (no .env file created)
+yeet run make dev
+yeet run npm start
+yeet run -- docker-compose up
+
+# Use a different vault
+yeet run --vault production-vault make deploy
+
+# Load .env file for local overrides
+yeet run --load-env make dev
+yeet run -e --env-file custom.env npm test
 ```
 
 ### Fetch Secrets
