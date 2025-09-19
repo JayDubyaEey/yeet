@@ -164,8 +164,6 @@ func fetchSecretsAsEnv(ctx context.Context, cfg *config.Config, vault string, pr
 	var mu sync.Mutex
 
 	for envKey, mapping := range cfg.Mappings {
-		envKey := envKey
-		mapping := mapping
 		sem <- struct{}{}
 		g.Go(func() error {
 			defer func() { <-sem }()
