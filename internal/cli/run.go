@@ -47,10 +47,37 @@ Examples:
 }
 
 func runWithSecrets(ctx context.Context, args []string) error {
-	// Load configuration
-	cfg, err := config.Load(configPath)
+	// Load configuration and determine vault
+	cfg, vault, err := loadRunConfig()
 	if err != nil {
 		return err
+	}
+
+	// Initialize provider and ensure logged in
+	prov := azcli.NewDefault()
+	if err := prov.EnsureLoggedIn(ctx); err != nil {
+		return fmt.Errorf("not logged in to Azure CLI: %w (run: yeet login)", err)
+	}
+
+	// Fetch secrets from Key Vault
+	envVars, err := fetchAndPrepareSecrets(ctx, cfg, vault, prov)
+	if err != nil {
+		return err
+	}
+
+	// Apply local overrides if requested
+	if loadEnvFile {
+		applyEnvFileOverrides(envVars, envFilePath)
+	}
+
+	// Execute command with secrets
+	return executeCommandWithEnv(ctx, args, envVars)
+}
+
+func loadRunConfig() (*config.Config, string, error) {
+	cfg, err := config.Load(configPath)
+	if err != nil {
+		return nil, "", err
 	}
 
 	vault := cfg.KeyVaultName
@@ -58,40 +85,39 @@ func runWithSecrets(ctx context.Context, args []string) error {
 		vault = vaultOverride
 	}
 
-	// Ensure logged in
-	prov := azcli.NewDefault()
-	if err := prov.EnsureLoggedIn(ctx); err != nil {
-		return fmt.Errorf("not logged in to Azure CLI: %w (run: yeet login)", err)
-	}
+	return cfg, vault, nil
+}
 
+func fetchAndPrepareSecrets(ctx context.Context, cfg *config.Config, vault string, prov *azcli.Provider) (map[string]string, error) {
 	ui.Info("fetching secrets from vault: %s", vault)
 
-	// Fetch secrets concurrently
 	envVars, err := fetchSecretsAsEnv(ctx, cfg, vault, prov)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	ui.Success("loaded %d environment variables from Key Vault", len(envVars))
+	return envVars, nil
+}
 
-	// Load local .env overrides if requested
-	if loadEnvFile {
-		overrides, err := loadEnvOverrides(envFilePath)
-		if err != nil {
-			ui.Warn("could not load env file %s: %v", envFilePath, err)
-		} else {
-			// Apply overrides
-			for key, value := range overrides {
-				if _, exists := envVars[key]; exists {
-					ui.Info("overriding %s from %s", key, envFilePath)
-				}
-				envVars[key] = value
-			}
-			ui.Success("loaded %d overrides from %s", len(overrides), envFilePath)
-		}
+func applyEnvFileOverrides(envVars map[string]string, envFilePath string) {
+	overrides, err := loadEnvOverrides(envFilePath)
+	if err != nil {
+		ui.Warn("could not load env file %s: %v", envFilePath, err)
+		return
 	}
 
-	// Prepare command
+	// Apply overrides
+	for key, value := range overrides {
+		if _, exists := envVars[key]; exists {
+			ui.Info("overriding %s from %s", key, envFilePath)
+		}
+		envVars[key] = value
+	}
+	ui.Success("loaded %d overrides from %s", len(overrides), envFilePath)
+}
+
+func executeCommandWithEnv(ctx context.Context, args []string, envVars map[string]string) error {
 	cmdName := args[0]
 	cmdArgs := args[1:]
 
@@ -113,16 +139,20 @@ func runWithSecrets(ctx context.Context, args []string) error {
 
 	// Run the command
 	if err := cmd.Run(); err != nil {
-		// Try to get the exit code
-		if exitError, ok := err.(*exec.ExitError); ok {
-			if status, ok := exitError.Sys().(syscall.WaitStatus); ok {
-				os.Exit(status.ExitStatus())
-			}
-		}
-		return fmt.Errorf("command failed: %w", err)
+		return handleCommandError(err)
 	}
 
 	return nil
+}
+
+func handleCommandError(err error) error {
+	// Try to get the exit code
+	if exitError, ok := err.(*exec.ExitError); ok {
+		if status, ok := exitError.Sys().(syscall.WaitStatus); ok {
+			os.Exit(status.ExitStatus())
+		}
+	}
+	return fmt.Errorf("command failed: %w", err)
 }
 
 func fetchSecretsAsEnv(ctx context.Context, cfg *config.Config, vault string, prov *azcli.Provider) (map[string]string, error) {
