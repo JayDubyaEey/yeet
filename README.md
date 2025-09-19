@@ -111,7 +111,30 @@ az keyvault list -o table
 
 ## Configuration
 
-Create an `env.config.json` file in your project directory:
+### Quick Start with init
+
+If you have an existing `.env.example` file, use the `init` command to generate your configuration automatically:
+
+```bash
+# Initialize with your Key Vault name
+yeet init my-keyvault-name
+
+# Initialize with default placeholder (update later)
+yeet init
+
+# Use a custom .env.example file
+yeet init my-keyvault --env-example .env.sample
+```
+
+The `init` command will:
+1. Parse your `.env.example` file
+2. Generate appropriate secret names from environment variable names
+3. Detect local development values and suggest them as docker overrides
+4. Create an `env.config.json` file ready for customization
+
+### Manual Configuration
+
+Alternatively, create an `env.config.json` file manually in your project directory:
 
 ```json
 {
@@ -141,6 +164,18 @@ Create an `env.config.json` file in your project directory:
    - `docker.env` uses the override value
 
 ## Usage
+
+### Initialize Configuration
+```bash
+# Generate config from .env.example
+yeet init my-keyvault-name
+
+# Use custom paths
+yeet init --env-example .env.sample --output my-config.json
+
+# Force overwrite existing config
+yeet init my-keyvault --force
+```
 
 ### Login to Azure
 ```bash
