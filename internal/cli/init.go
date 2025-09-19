@@ -238,9 +238,14 @@ func generateSecretName(envVar string) string {
 }
 
 var (
+	// Patterns that strongly indicate local development values
 	localPatterns = []string{
 		"localhost", "127.0.0.1", "0.0.0.0", "host.docker.internal",
-		"test", "development", "debug", "true", "false",
+		"://localhost", "@localhost", ".local", ".test",
+	}
+	// Common development-only values that should be more specific
+	devKeywords = []string{
+		"development", "debug", "test", "staging", "local",
 	}
 	portPattern = regexp.MustCompile(`:\d+`)
 )
@@ -249,8 +254,9 @@ func looksLikeLocalValue(value string) bool {
 	lowerValue := strings.ToLower(value)
 
 	return containsLocalPattern(lowerValue) ||
-		containsPort(value) ||
-		isTestValue(value)
+		containsPort(lowerValue) ||
+		isPlaceholderValue(lowerValue) ||
+		isStandaloneDevKeyword(lowerValue)
 }
 
 func containsLocalPattern(value string) bool {
@@ -266,8 +272,28 @@ func containsPort(value string) bool {
 	return portPattern.MatchString(value)
 }
 
-func isTestValue(value string) bool {
-	return strings.HasPrefix(value, "your-") || strings.HasPrefix(value, "sk_test_")
+func isPlaceholderValue(value string) bool {
+	// Check for common placeholder/example patterns
+	return strings.HasPrefix(value, "your-") ||
+		strings.HasPrefix(value, "my-") ||
+		strings.HasPrefix(value, "sk_test_") ||
+		strings.HasPrefix(value, "pk_test_") ||
+		strings.Contains(value, "example") ||
+		strings.Contains(value, "sample") ||
+		value == "changeme" ||
+		value == "todo" ||
+		value == "xxx"
+}
+
+func isStandaloneDevKeyword(value string) bool {
+	// Only match exact development keywords, not as part of other strings
+	for _, keyword := range devKeywords {
+		if value == keyword {
+			return true
+		}
+	}
+	// Check for boolean strings only when they're the entire value
+	return value == "true" || value == "false"
 }
 
 func writeConfig(cfg *config.Config, path string) error {
