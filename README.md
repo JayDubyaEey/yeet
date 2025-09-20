@@ -174,23 +174,7 @@ The enhanced format allows you to specify different values for local development
 
 #### Global Values
 - **`type` + `value`**: Applied to both environments when no environment-specific config exists
-- **Simple string**: Shorthand for `{"type": "keyvault", "value": "secret-name"}` (legacy compatibility)
-
-### Legacy Configuration Format (Still Supported)
-
-```json
-{
-  "keyVaultName": "my-keyvault-name",
-  "mappings": {
-    "DATABASE_URL": "postgres-connection-string",
-    "API_KEY": "api-key",
-    "JWT_SECRET": {
-      "secret": "jwt-secret-key",
-      "docker": "local-dev-jwt-secret"
-    }
-  }
-}
-```
+- **Simple string**: Shorthand for `{"type": "keyvault", "value": "secret-name"}`
 
 ## Usage
 

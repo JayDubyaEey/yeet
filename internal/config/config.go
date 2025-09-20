@@ -30,10 +30,6 @@ type Mapping struct {
 	// Global fallback (when not environment-specific)
 	Type  ValueType `json:"type,omitempty"`
 	Value string    `json:"value,omitempty"`
-
-	// Legacy format (backward compatibility)
-	Secret         *string `json:"secret,omitempty"`
-	DockerOverride *string `json:"docker,omitempty"`
 }
 
 // Environment represents the target environment
@@ -68,18 +64,6 @@ func (m *Mapping) GetValueSpec(env Environment) *ValueSpec {
 		return &ValueSpec{
 			Type:  m.Type,
 			Value: m.Value,
-		}
-	}
-
-	// Legacy compatibility - treat as keyvault secret
-	if m.Secret != nil {
-		secretName := *m.Secret
-		if env == EnvDocker && m.DockerOverride != nil {
-			secretName = *m.DockerOverride
-		}
-		return &ValueSpec{
-			Type:  ValueTypeKeyvault,
-			Value: secretName,
 		}
 	}
 
@@ -150,14 +134,15 @@ func parseConfig(data []byte, path string) (*Config, error) {
 func parseMapping(key string, rawVal json.RawMessage) (Mapping, error) {
 	var mapping Mapping
 
-	// Try simple string first (legacy format)
+	// Try simple string first - convert to global keyvault type
 	var secretName string
 	if err := json.Unmarshal(rawVal, &secretName); err == nil {
-		mapping.Secret = &secretName
+		mapping.Type = ValueTypeKeyvault
+		mapping.Value = secretName
 		return mapping, nil
 	}
 
-	// Try complex object - could be legacy or new format
+	// Try complex object
 	if err := json.Unmarshal(rawVal, &mapping); err != nil {
 		return mapping, fmt.Errorf("invalid mapping for %s: %w", key, err)
 	}
@@ -191,9 +176,8 @@ func validateMapping(key string, mapping Mapping) error {
 	hasLocal := mapping.Local != nil
 	hasDocker := mapping.Docker != nil
 	hasGlobal := mapping.Type != "" && mapping.Value != ""
-	hasLegacy := mapping.Secret != nil
 
-	if !hasLocal && !hasDocker && !hasGlobal && !hasLegacy {
+	if !hasLocal && !hasDocker && !hasGlobal {
 		return fmt.Errorf("mapping for %s must have at least one value specification", key)
 	}
 
@@ -213,9 +197,6 @@ func validateMapping(key string, mapping Mapping) error {
 		if err := validateValueSpec(key, "global", globalSpec); err != nil {
 			return err
 		}
-	}
-	if hasLegacy && *mapping.Secret == "" {
-		return fmt.Errorf("secret name cannot be empty for %s", key)
 	}
 
 	return nil

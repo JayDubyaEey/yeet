@@ -109,26 +109,9 @@ yeet run -e docker -- docker-compose up
 yeet run -e docker -- docker-compose up
 ```
 
-## Backward Compatibility
-
-All existing configurations continue to work:
-
-```json
-{
-  "keyVaultName": "my-vault",
-  "mappings": {
-    "DATABASE_URL": "postgres-connection-string",
-    "API_KEY": {
-      "secret": "api-key",
-      "docker": "local-dev-api-key"
-    }
-  }
-}
-```
-
 ## Configuration Format Reference
 
-### New Enhanced Format
+### Enhanced Format
 
 ```json
 {
@@ -165,7 +148,7 @@ All existing configurations continue to work:
 
 ## Complete Example
 
-See `env.config.enhanced.json` for a comprehensive example covering all scenarios.
+See `env.config.json.example` for a comprehensive example covering all scenarios.
 
 ## Test Program
 
