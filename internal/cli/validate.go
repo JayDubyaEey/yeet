@@ -29,13 +29,30 @@ func newValidateCmd() *cobra.Command {
 				return fmt.Errorf("not logged in to Azure CLI: %w (run: yeet login)", err)
 			}
 			missing := make([]string, 0)
+			secretsToCheck := make(map[string][]string) // secret name -> list of env vars that use it
+
+			// Collect all unique secrets from all environments
 			for envKey, mapping := range cfg.Mappings {
-				exists, err := prov.SecretExists(cmd.Context(), vault, mapping.Secret)
+				// Check local environment
+				if localSpec := mapping.GetValueSpec(config.EnvLocal); localSpec != nil && localSpec.IsKeyvaultSecret() {
+					secretsToCheck[localSpec.Value] = append(secretsToCheck[localSpec.Value], envKey+"(local)")
+				}
+				// Check docker environment
+				if dockerSpec := mapping.GetValueSpec(config.EnvDocker); dockerSpec != nil && dockerSpec.IsKeyvaultSecret() {
+					secretsToCheck[dockerSpec.Value] = append(secretsToCheck[dockerSpec.Value], envKey+"(docker)")
+				}
+			}
+
+			// Check each unique secret
+			for secretName, envVars := range secretsToCheck {
+				exists, err := prov.SecretExists(cmd.Context(), vault, secretName)
 				if err != nil {
 					return err
 				}
 				if !exists {
-					missing = append(missing, fmt.Sprintf("%s -> %s", envKey, mapping.Secret))
+					for _, envVar := range envVars {
+						missing = append(missing, fmt.Sprintf("%s -> %s", envVar, secretName))
+					}
 				}
 			}
 			if len(missing) > 0 {

@@ -1,76 +1,180 @@
-# Yeet Examples
+# Enhanced Configuration Examples
 
-This directory contains examples of how to use yeet in your projects.
+This directory contains examples demonstrating the enhanced configuration features of yeet.
 
-## The Problem
+## Problem Statement
 
-Traditional approach with `.env` files:
-1. Run `yeet fetch` to create `.env` file
-2. Source the `.env` file in your scripts/Makefile
-3. Files can get out of sync
-4. Secrets are written to disk
+The original scenarios that needed to be addressed:
 
-## The Solution: `yeet run`
+1. **Different local vs Docker variables**: Need different values for local development vs Docker compose
+2. **Direct values vs Key Vault references**: Some values should be literals, others from Key Vault
+3. **Environment-aware `yeet run`**: The run command should know which environment to use
 
-With `yeet run`, you can run any command with secrets injected as environment variables:
+## Solutions
+
+### 1. Environment-Specific Configuration
+
+**Problem**: Database URL differs between local development and Docker compose
+
+**Solution**: Use environment-specific configuration:
+
+```json
+{
+  "keyVaultName": "my-app-vault",
+  "mappings": {
+    "DATABASE_URL": {
+      "local": {
+        "type": "literal",
+        "value": "postgresql://localhost:5432/myapp_dev"
+      },
+      "docker": {
+        "type": "literal",
+        "value": "postgresql://db:5432/myapp_dev"
+      }
+    }
+  }
+}
+```
+
+**Usage**:
+```bash
+# For local development
+yeet run npm start                     # Uses localhost:5432
+yeet fetch                            # Generates .env with localhost:5432
+
+# For Docker compose
+yeet run --env docker docker-compose up   # Uses db:5432
+yeet fetch                                # Generates docker.env with db:5432
+```
+
+### 2. Mixed Value Types
+
+**Problem**: Some values should come from Key Vault, others should be literals
+
+**Solution**: Specify `type` for each value:
+
+```json
+{
+  "keyVaultName": "my-app-vault",
+  "mappings": {
+    "DATABASE_URL": {
+      "local": {
+        "type": "keyvault",
+        "value": "dev-database-url"
+      },
+      "docker": {
+        "type": "keyvault", 
+        "value": "docker-database-url"
+      }
+    },
+    "REDIS_URL": {
+      "local": {
+        "type": "literal",
+        "value": "redis://localhost:6379"
+      },
+      "docker": {
+        "type": "literal",
+        "value": "redis://redis:6379"
+      }
+    },
+    "JWT_SECRET": {
+      "local": {
+        "type": "literal",
+        "value": "local-dev-secret-not-secure"
+      },
+      "docker": {
+        "type": "keyvault",
+        "value": "production-jwt-secret"
+      }
+    }
+  }
+}
+```
+
+### 3. Environment-Aware yeet run
+
+**Problem**: `yeet run` didn't know whether to use local or Docker values
+
+**Solution**: New `--env` flag:
 
 ```bash
-# No .env file needed!
-yeet run make dev
+# Local development (default)
 yeet run npm start
-yeet run python manage.py runserver
+yeet run --env local npm start
+
+# Docker environment
+yeet run --env docker docker-compose up
+yeet run -e docker -- docker-compose up
+```
+yeet run -e docker -- docker-compose up
 ```
 
-## Makefile Integration
+## Backward Compatibility
 
-See the [Makefile](./Makefile) in this directory for a complete example.
+All existing configurations continue to work:
 
-### Before (traditional approach):
-```makefile
-dev:
-	@source .env && npm start
+```json
+{
+  "keyVaultName": "my-vault",
+  "mappings": {
+    "DATABASE_URL": "postgres-connection-string",
+    "API_KEY": {
+      "secret": "api-key",
+      "docker": "local-dev-api-key"
+    }
+  }
+}
 ```
 
-### After (with yeet run):
-```makefile
-dev:
-	@yeet run npm start
+## Configuration Format Reference
+
+### New Enhanced Format
+
+```json
+{
+  "keyVaultName": "vault-name",
+  "mappings": {
+    "ENV_VAR": {
+      "local": {
+        "type": "keyvault|literal",
+        "value": "secret-name-or-literal-value"
+      },
+      "docker": {
+        "type": "keyvault|literal", 
+        "value": "secret-name-or-literal-value"
+      }
+    },
+    "GLOBAL_VAR": {
+      "type": "keyvault|literal",
+      "value": "applies-to-both-environments"
+    },
+    "SIMPLE_VAR": "shorthand-for-keyvault-secret"
+  }
+}
 ```
 
-## Benefits
+### Value Types
 
-1. **No files on disk** - Secrets never touch the filesystem
-2. **Always up-to-date** - Fetches latest secrets from Key Vault every time
-3. **Vault switching** - Easy to switch between vaults: `yeet run -v staging make dev`
-4. **Local overrides** - Still support .env for local development: `yeet run --load-env make dev`
-5. **CI/CD friendly** - Perfect for pipelines where you don't want to create files
+- **`keyvault`**: Fetch from Azure Key Vault
+- **`literal`**: Use the value directly
 
-## Advanced Usage
+### Environment Types
 
-### Multiple Vaults
+- **`local`**: Local development (`.env` file, `yeet run` default)
+- **`docker`**: Docker environment (`docker.env` file, `yeet run --env docker`)
+
+## Complete Example
+
+See `env.config.enhanced.json` for a comprehensive example covering all scenarios.
+
+## Test Program
+
+Use `test.go` to verify which environment variables are being passed to your application:
+
 ```bash
-# Development
-yeet run --vault dev-vault make dev
+# Test with local environment
+yeet run --env local go run examples/test.go
 
-# Staging
-yeet run --vault staging-vault make deploy
-
-# Production
-yeet run --vault prod-vault make deploy
-```
-
-### Local Overrides
-```bash
-# Create a .env with overrides
-echo "DEBUG=true" > .env
-
-# Run with both Key Vault secrets and local overrides
-yeet run --load-env make dev
-```
-
-### Complex Commands
-```bash
-# Use -- to separate yeet flags from command flags
-yeet run -- docker-compose up -d
-yeet run -- npm run build --production
+# Test with docker environment  
+yeet run --env docker go run examples/test.go
 ```

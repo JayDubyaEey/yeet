@@ -21,6 +21,7 @@ import (
 var (
 	loadEnvFile bool
 	envFilePath string
+	targetEnv   string
 )
 
 func newRunCmd() *cobra.Command {
@@ -30,18 +31,20 @@ func newRunCmd() *cobra.Command {
 		Long: `Run a command with secrets from Key Vault as environment variables.
 
 Examples:
-  yeet run make dev
-  yeet run --vault my-vault npm start
-  yeet run -v production-vault -- docker-compose up
-  yeet run --load-env -- npm start  # Load .env file for overrides`,
+  yeet run make dev                              # Run with local environment
+  yeet run --env docker docker-compose up       # Run with docker environment
+  yeet run --vault my-vault npm start           # Override vault
+  yeet run -e docker -- docker-compose up       # Use docker environment
+  yeet run --load-env -- npm start              # Load .env file for overrides`,
 		Args: cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runWithSecrets(cmd.Context(), args)
 		},
 	}
 
-	cmd.Flags().BoolVarP(&loadEnvFile, "load-env", "e", false, "Load .env file for local overrides")
+	cmd.Flags().BoolVarP(&loadEnvFile, "load-env", "l", false, "Load .env file for local overrides")
 	cmd.Flags().StringVar(&envFilePath, "env-file", ".env", "Path to env file to load (only used with --load-env)")
+	cmd.Flags().StringVarP(&targetEnv, "env", "e", "local", "Target environment (local|docker)")
 
 	return cmd
 }
@@ -156,31 +159,53 @@ func handleCommandError(err error) error {
 }
 
 func fetchSecretsAsEnv(ctx context.Context, cfg *config.Config, vault string, prov *azcli.Provider) (map[string]string, error) {
+	// Parse target environment
+	var env config.Environment
+	switch targetEnv {
+	case "local":
+		env = config.EnvLocal
+	case "docker":
+		env = config.EnvDocker
+	default:
+		return nil, fmt.Errorf("invalid environment %q: must be 'local' or 'docker'", targetEnv)
+	}
+
 	envVars := make(map[string]string)
 	missing := make([]string, 0)
+	secretCache := make(map[string]string) // Cache to avoid duplicate fetches
 
 	g, gctx := errgroup.WithContext(ctx)
 	sem := make(chan struct{}, 6) // concurrency limit
 	var mu sync.Mutex
 
-	for envKey, mapping := range cfg.Mappings {
+	// First pass: collect all unique keyvault secrets we need
+	secretsToFetch := make(map[string]bool)
+	for _, mapping := range cfg.Mappings {
+		if spec := mapping.GetValueSpec(env); spec != nil && spec.IsKeyvaultSecret() {
+			secretsToFetch[spec.Value] = true
+		}
+	}
+
+	// Fetch all required secrets
+	for secretName := range secretsToFetch {
+		secretName := secretName
 		sem <- struct{}{}
 		g.Go(func() error {
 			defer func() { <-sem }()
 
-			val, err := prov.GetSecret(gctx, vault, mapping.Secret)
+			val, err := prov.GetSecret(gctx, vault, secretName)
 			if err != nil {
 				if azcli.IsNotFound(err) {
 					mu.Lock()
-					missing = append(missing, fmt.Sprintf("%s -> %s", envKey, mapping.Secret))
+					missing = append(missing, fmt.Sprintf("secret: %s", secretName))
 					mu.Unlock()
 					return nil
 				}
-				return fmt.Errorf("failed to get secret %s for %s: %w", mapping.Secret, envKey, err)
+				return fmt.Errorf("failed to get secret %s: %w", secretName, err)
 			}
 
 			mu.Lock()
-			envVars[envKey] = val
+			secretCache[secretName] = val
 			mu.Unlock()
 			return nil
 		})
@@ -190,12 +215,30 @@ func fetchSecretsAsEnv(ctx context.Context, cfg *config.Config, vault string, pr
 		return nil, err
 	}
 
+	// Second pass: build environment variables
+	for envKey, mapping := range cfg.Mappings {
+		spec := mapping.GetValueSpec(env)
+		if spec == nil {
+			continue // No value for this environment
+		}
+
+		if spec.IsKeyvaultSecret() {
+			if val, exists := secretCache[spec.Value]; exists {
+				envVars[envKey] = val
+			} else {
+				missing = append(missing, fmt.Sprintf("%s (%s) -> %s", envKey, env, spec.Value))
+			}
+		} else if spec.IsLiteral() {
+			envVars[envKey] = spec.Value
+		}
+	}
+
 	if len(missing) > 0 {
-		ui.Error("missing %d secrets in vault %s:", len(missing), vault)
+		ui.Error("missing %d values for environment %s:", len(missing), env)
 		for _, m := range missing {
 			ui.Error("  - %s", m)
 		}
-		return nil, fmt.Errorf("one or more secrets are missing")
+		return nil, fmt.Errorf("one or more values are missing")
 	}
 
 	return envVars, nil

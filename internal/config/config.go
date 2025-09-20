@@ -7,16 +7,93 @@ import (
 	"regexp"
 )
 
-// Mapping represents a single env var mapping
-type Mapping struct {
-	Secret string  `json:"secret"`
-	Docker *string `json:"docker,omitempty"`
+// ValueType represents the type of a configuration value
+type ValueType string
+
+const (
+	ValueTypeKeyvault ValueType = "keyvault"
+	ValueTypeLiteral  ValueType = "literal"
+)
+
+// ValueSpec represents a value specification with type and value
+type ValueSpec struct {
+	Type  ValueType `json:"type"`
+	Value string    `json:"value"`
 }
+
+// Mapping represents a single env var mapping with support for environments
+type Mapping struct {
+	// New enhanced format
+	Local  *ValueSpec `json:"local,omitempty"`
+	Docker *ValueSpec `json:"docker,omitempty"`
+
+	// Global fallback (when not environment-specific)
+	Type  ValueType `json:"type,omitempty"`
+	Value string    `json:"value,omitempty"`
+
+	// Legacy format (backward compatibility)
+	Secret         *string `json:"secret,omitempty"`
+	DockerOverride *string `json:"docker,omitempty"`
+}
+
+// Environment represents the target environment
+type Environment string
+
+const (
+	EnvLocal  Environment = "local"
+	EnvDocker Environment = "docker"
+)
 
 // Config represents the env.config.json structure
 type Config struct {
 	KeyVaultName string             `json:"keyVaultName"`
 	Mappings     map[string]Mapping `json:"mappings"`
+}
+
+// GetValueSpec returns the appropriate ValueSpec for the given environment
+func (m *Mapping) GetValueSpec(env Environment) *ValueSpec {
+	switch env {
+	case EnvLocal:
+		if m.Local != nil {
+			return m.Local
+		}
+	case EnvDocker:
+		if m.Docker != nil {
+			return m.Docker
+		}
+	}
+
+	// Fallback to global value if present
+	if m.Type != "" && m.Value != "" {
+		return &ValueSpec{
+			Type:  m.Type,
+			Value: m.Value,
+		}
+	}
+
+	// Legacy compatibility - treat as keyvault secret
+	if m.Secret != nil {
+		secretName := *m.Secret
+		if env == EnvDocker && m.DockerOverride != nil {
+			secretName = *m.DockerOverride
+		}
+		return &ValueSpec{
+			Type:  ValueTypeKeyvault,
+			Value: secretName,
+		}
+	}
+
+	return nil
+}
+
+// IsKeyvaultSecret returns true if the value should be fetched from Key Vault
+func (v *ValueSpec) IsKeyvaultSecret() bool {
+	return v != nil && v.Type == ValueTypeKeyvault
+}
+
+// IsLiteral returns true if the value is a literal value
+func (v *ValueSpec) IsLiteral() bool {
+	return v != nil && v.Type == ValueTypeLiteral
 }
 
 // rawMapping helps parse JSON where value can be string or object
@@ -73,16 +150,16 @@ func parseConfig(data []byte, path string) (*Config, error) {
 func parseMapping(key string, rawVal json.RawMessage) (Mapping, error) {
 	var mapping Mapping
 
-	// Try simple string first
+	// Try simple string first (legacy format)
 	var secretName string
 	if err := json.Unmarshal(rawVal, &secretName); err == nil {
-		mapping.Secret = secretName
+		mapping.Secret = &secretName
 		return mapping, nil
 	}
 
-	// Try complex object
+	// Try complex object - could be legacy or new format
 	if err := json.Unmarshal(rawVal, &mapping); err != nil {
-		return mapping, fmt.Errorf("invalid mapping for %s: must be string or {secret, docker}", key)
+		return mapping, fmt.Errorf("invalid mapping for %s: %w", key, err)
 	}
 
 	return mapping, nil
@@ -109,8 +186,52 @@ func validateMapping(key string, mapping Mapping) error {
 	if !envVarRegex.MatchString(key) {
 		return fmt.Errorf("invalid env var name: %s (must match ^[A-Z_][A-Z0-9_]*$)", key)
 	}
-	if mapping.Secret == "" {
+
+	// Check if we have any valid configuration
+	hasLocal := mapping.Local != nil
+	hasDocker := mapping.Docker != nil
+	hasGlobal := mapping.Type != "" && mapping.Value != ""
+	hasLegacy := mapping.Secret != nil
+
+	if !hasLocal && !hasDocker && !hasGlobal && !hasLegacy {
+		return fmt.Errorf("mapping for %s must have at least one value specification", key)
+	}
+
+	// Validate individual value specs
+	if hasLocal {
+		if err := validateValueSpec(key, "local", mapping.Local); err != nil {
+			return err
+		}
+	}
+	if hasDocker {
+		if err := validateValueSpec(key, "docker", mapping.Docker); err != nil {
+			return err
+		}
+	}
+	if hasGlobal {
+		globalSpec := &ValueSpec{Type: mapping.Type, Value: mapping.Value}
+		if err := validateValueSpec(key, "global", globalSpec); err != nil {
+			return err
+		}
+	}
+	if hasLegacy && *mapping.Secret == "" {
 		return fmt.Errorf("secret name cannot be empty for %s", key)
+	}
+
+	return nil
+}
+
+// validateValueSpec validates a single value specification
+func validateValueSpec(key, context string, spec *ValueSpec) error {
+	if spec == nil {
+		return fmt.Errorf("value spec cannot be nil for %s (%s)", key, context)
+	}
+	if spec.Value == "" {
+		return fmt.Errorf("value cannot be empty for %s (%s)", key, context)
+	}
+	if spec.Type != ValueTypeKeyvault && spec.Type != ValueTypeLiteral {
+		return fmt.Errorf("invalid type %q for %s (%s): must be %q or %q",
+			spec.Type, key, context, ValueTypeKeyvault, ValueTypeLiteral)
 	}
 	return nil
 }
