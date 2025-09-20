@@ -113,34 +113,84 @@ az keyvault list -o table
 
 ## Configuration
 
-Create an `env.config.json` file in your project directory:
+Create an `env.config.json` file in your project directory. Yeet supports both simple and advanced configuration formats:
+
+### Enhanced Configuration Format (Recommended)
+
+The enhanced format allows you to specify different values for local development vs Docker environments, and distinguish between Key Vault secrets and literal values:
+
+```json
+{
+  "keyVaultName": "my-keyvault-name",
+  "mappings": {
+    "DATABASE_URL": {
+      "local": {
+        "type": "keyvault",
+        "value": "postgres-connection-string"
+      },
+      "docker": {
+        "type": "keyvault", 
+        "value": "postgres-docker-connection-string"
+      }
+    },
+    "REDIS_URL": {
+      "local": {
+        "type": "keyvault",
+        "value": "redis-connection-string"
+      },
+      "docker": {
+        "type": "literal",
+        "value": "redis://redis:6379"
+      }
+    },
+    "JWT_SECRET": {
+      "local": {
+        "type": "literal",
+        "value": "local-dev-secret-123"
+      },
+      "docker": {
+        "type": "keyvault",
+        "value": "jwt-secret-production"
+      }
+    },
+    "PORT": {
+      "type": "literal",
+      "value": "8080"
+    },
+    "SIMPLE_VAR": "simple-keyvault-secret"
+  }
+}
+```
+
+### Configuration Options
+
+#### Environment-Specific Values
+- **`local`**: Values used for local development (`.env` file and `yeet run --env local`)
+- **`docker`**: Values used for Docker environments (`docker.env` file and `yeet run --env docker`)
+
+#### Value Types
+- **`keyvault`**: Fetch value from Azure Key Vault using the specified secret name
+- **`literal`**: Use the specified value directly (no Key Vault lookup)
+
+#### Global Values
+- **`type` + `value`**: Applied to both environments when no environment-specific config exists
+- **Simple string**: Shorthand for `{"type": "keyvault", "value": "secret-name"}` (legacy compatibility)
+
+### Legacy Configuration Format (Still Supported)
 
 ```json
 {
   "keyVaultName": "my-keyvault-name",
   "mappings": {
     "DATABASE_URL": "postgres-connection-string",
-    "REDIS_URL": "redis-connection-string",
     "API_KEY": "api-key",
     "JWT_SECRET": {
       "secret": "jwt-secret-key",
       "docker": "local-dev-jwt-secret"
-    },
-    "LOG_LEVEL": {
-      "secret": "log-level"
     }
   }
 }
 ```
-
-### Mapping Types
-
-1. **Simple mapping**: `"ENV_VAR": "secret-name"`
-   - Both `.env` and `docker.env` will use the secret value
-
-2. **Complex mapping**: `"ENV_VAR": { "secret": "secret-name", "docker": "override-value" }`
-   - `.env` uses the secret value
-   - `docker.env` uses the override value
 
 ## Usage
 
@@ -153,17 +203,20 @@ yeet login --tenant YOUR_TENANT --subscription YOUR_SUBSCRIPTION
 
 ### Run Commands with Secrets
 ```bash
-# Run a command with secrets as environment variables (no .env file created)
+# Run with local environment (default)
 yeet run make dev
 yeet run npm start
-yeet run -- docker-compose up
+
+# Run with docker environment
+yeet run --env docker docker-compose up
+yeet run -e docker -- docker-compose up
 
 # Use a different vault
 yeet run --vault production-vault make deploy
 
 # Load .env file for local overrides
 yeet run --load-env make dev
-yeet run -e --env-file custom.env npm test
+yeet run -l --env-file custom.env npm test
 ```
 
 ### Fetch Secrets
