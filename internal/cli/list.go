@@ -79,14 +79,33 @@ func loadConfigAndVault() (*config.Config, string, error) {
 }
 
 func fetchSecretStatuses(ctx context.Context, cfg *config.Config, vault string, prov *azcli.Provider) ([]secretRow, error) {
-	rows := make([]secretRow, 0, len(cfg.Mappings))
+	secretsToCheck := make(map[string][]string) // secret name -> list of env vars that use it
+
+	// Collect all unique secrets from all environments
 	for envKey, mapping := range cfg.Mappings {
-		exists, err := prov.SecretExists(ctx, vault, mapping.Secret)
+		// Check local environment
+		if localSpec := mapping.GetValueSpec(config.EnvLocal); localSpec != nil && localSpec.IsKeyvaultSecret() {
+			secretsToCheck[localSpec.Value] = append(secretsToCheck[localSpec.Value], envKey+"(local)")
+		}
+		// Check docker environment
+		if dockerSpec := mapping.GetValueSpec(config.EnvDocker); dockerSpec != nil && dockerSpec.IsKeyvaultSecret() {
+			secretsToCheck[dockerSpec.Value] = append(secretsToCheck[dockerSpec.Value], envKey+"(docker)")
+		}
+	}
+
+	rows := make([]secretRow, 0, len(secretsToCheck))
+	for secretName, envVars := range secretsToCheck {
+		exists, err := prov.SecretExists(ctx, vault, secretName)
 		if err != nil {
 			return nil, err
 		}
-		rows = append(rows, secretRow{Env: envKey, Secret: mapping.Secret, Exists: exists})
+
+		// Create a row for each environment variable that uses this secret
+		for _, envVar := range envVars {
+			rows = append(rows, secretRow{Env: envVar, Secret: secretName, Exists: exists})
+		}
 	}
+
 	return rows, nil
 }
 
