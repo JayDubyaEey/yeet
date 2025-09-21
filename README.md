@@ -16,6 +16,7 @@ Yeet pulls secrets from Azure Key Vault and generates `.env` and `docker.env` fi
 - 🔄 Supports simple and complex mappings with docker-specific overrides
 - ⚡ Concurrent secret fetching for speed
 - 🔍 Validates configuration and checks secret existence
+- 📊 Compare configuration with Kubernetes deployment files
 - ⚠️  Warns about unmapped environment variables
 - 🎯 Perfect for Makefiles and CI/CD pipelines
 
@@ -236,8 +237,30 @@ yeet list --exists-only
 yeet list --raw
 ```
 
+### Compare with Kubernetes Deployments
+```bash
+# Compare config with Kubernetes deployment file
+yeet compare
+
+# Specify custom deployment file path
+yeet compare --deployment-path path/to/deployment.yml
+
+# Use different environment for comparison
+yeet compare --env docker
+```
+
+The compare command analyzes your configuration against Kubernetes deployment files and shows:
+- Variables in your config but missing from the deployment
+- Variables in the deployment but missing from your config
+- Environment variable mismatches and recommendations
+
+This helps ensure your configuration stays in sync with your Kubernetes deployments.
+
 ### Other Commands
 ```bash
+# Compare with Kubernetes deployment files
+yeet compare
+
 # Refresh environment files (same as fetch)
 yeet refresh
 
@@ -252,10 +275,77 @@ yeet --help
 yeet fetch --help
 ```
 
+## Kubernetes Integration
+
+### Comparing with Deployment Files
+
+Yeet can compare your configuration with Kubernetes deployment files to ensure your environment variables are properly aligned:
+
+```bash
+# Compare with default deployment file (deploy/base/deployment.yml)
+yeet compare
+
+# Compare with custom deployment file
+yeet compare --deployment-path k8s/production/deployment.yaml
+
+# Compare using docker environment settings
+yeet compare --env docker --deployment-path k8s/staging/deployment.yaml
+```
+
+#### What the Compare Command Checks
+
+The compare command analyzes both your `env.config.json` and Kubernetes deployment YAML files to identify:
+
+1. **Missing in Deployment**: Variables defined in your config but not present in the Kubernetes deployment
+2. **Missing in Config**: Environment variables in the deployment that aren't defined in your config
+3. **Value Type Mismatches**: Helps identify when you're using literal values vs secrets in different environments
+
+#### Example Output
+
+```bash
+$ yeet compare
+✅ Configuration loaded successfully
+✅ Deployment file loaded: deploy/base/deployment.yml
+
+📊 Comparison Results:
+
+❌ Variables in config but missing from deployment:
+  • REDIS_URL
+  • API_KEY
+
+⚠️  Variables in deployment but missing from config:
+  • USER_SERVICE_BASE_URL
+  • POSTGRES_DATABASE
+
+✅ Matching variables (5):
+  • LOG_LEVEL
+  • JWT_SECRET
+  • POSTGRES_HOST
+  • POSTGRES_PORT
+  • POSTGRES_PASSWORD
+
+💡 Recommendations:
+  • Add missing variables to your Kubernetes deployment
+  • Consider adding USER_SERVICE_BASE_URL to your config if needed
+  • Review if POSTGRES_DATABASE should be configurable
+```
+
+#### Supported Kubernetes Resources
+
+The compare command supports:
+- **Deployments** - Extracts env vars from container specifications
+- **StatefulSets** - Analyzes environment variables in pod templates
+- **DaemonSets** - Checks environment configuration across daemon pods
+- **Jobs/CronJobs** - Validates job container environment variables
+
+It handles both direct environment variable values and references to ConfigMaps/Secrets via `valueFrom`.
+
 ## Global Flags
 
 - `--config` - Path to configuration file (default: `env.config.json`)
 - `--vault` - Override Key Vault name from config
+- `--env` - Environment to use (local/docker, default: local)
+- `--deployment-path` - Path to Kubernetes deployment file (compare command)
 - `--no-color` - Disable colored output
 - `-v, --verbose` - Enable verbose logging
 
