@@ -28,21 +28,6 @@ func newFetchCmd() *cobra.Command {
 	return cmd
 }
 
-func newRefreshCmd() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "refresh",
-		Short: "Refresh .env and docker.env from Key Vault",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			// Same as fetch; optionally warm token
-			if err := azcli.NewDefault().WarmToken(cmd.Context()); err != nil {
-				ui.Warn("could not warm token: %v", err)
-			}
-			return runFetch(cmd.Context())
-		},
-	}
-	return cmd
-}
-
 type fetchContext struct {
 	cfg   *config.Config
 	vault string
@@ -99,7 +84,6 @@ func prepareFetch() (*fetchContext, error) {
 func fetchSecrets(ctx context.Context, fctx *fetchContext) ([]secretResult, []string, error) {
 	// We need to fetch secrets for both environments
 	localSecrets := make(map[string]string) // secret name -> value cache
-	results := make([]secretResult, 0)
 	missing := make([]string, 0)
 
 	g, gctx := errgroup.WithContext(ctx)
@@ -107,8 +91,23 @@ func fetchSecrets(ctx context.Context, fctx *fetchContext) ([]secretResult, []st
 	var mu sync.Mutex
 
 	// Collect all unique Key Vault secrets we need to fetch
+	secretsToFetch := collectSecretsToFetch(fctx.cfg)
+
+	// Fetch all required secrets concurrently
+	if err := fetchAllSecrets(gctx, g, sem, fctx, secretsToFetch, localSecrets, &missing, &mu); err != nil {
+		return nil, nil, err
+	}
+
+	// Build results for each environment variable
+	results, missingMappings := buildResultsFromSecrets(fctx.cfg, localSecrets)
+	missing = append(missing, missingMappings...)
+
+	return results, missing, nil
+}
+
+func collectSecretsToFetch(cfg *config.Config) map[string]bool {
 	secretsToFetch := make(map[string]bool)
-	for _, mapping := range fctx.cfg.Mappings {
+	for _, mapping := range cfg.Mappings {
 		// Check local environment
 		if localSpec := mapping.GetValueSpec(config.EnvLocal); localSpec != nil && localSpec.IsKeyvaultSecret() {
 			secretsToFetch[localSpec.Value] = true
@@ -118,63 +117,64 @@ func fetchSecrets(ctx context.Context, fctx *fetchContext) ([]secretResult, []st
 			secretsToFetch[dockerSpec.Value] = true
 		}
 	}
+	return secretsToFetch
+}
 
-	// Fetch all required secrets
+func fetchAllSecrets(gctx context.Context, g *errgroup.Group, sem chan struct{}, fctx *fetchContext, secretsToFetch map[string]bool, localSecrets map[string]string, missing *[]string, mu *sync.Mutex) error {
 	for secretName := range secretsToFetch {
 		secretName := secretName
 		sem <- struct{}{}
 		g.Go(func() error {
 			defer func() { <-sem }()
-			return fetchKeyVaultSecret(gctx, fctx, secretName, localSecrets, &missing, &mu)
+			return fetchKeyVaultSecret(gctx, fctx, secretName, localSecrets, missing, mu)
 		})
 	}
+	return g.Wait()
+}
 
-	if err := g.Wait(); err != nil {
-		return nil, nil, err
-	}
+func buildResultsFromSecrets(cfg *config.Config, localSecrets map[string]string) ([]secretResult, []string) {
+	var results []secretResult
+	var missing []string
 
-	// Now build results for each environment variable
-	for envKey, mapping := range fctx.cfg.Mappings {
+	for envKey, mapping := range cfg.Mappings {
 		// Process local environment
-		if localSpec := mapping.GetValueSpec(config.EnvLocal); localSpec != nil {
-			result := secretResult{
-				key:         envKey,
-				environment: config.EnvLocal,
-			}
-			if localSpec.IsKeyvaultSecret() {
-				if val, exists := localSecrets[localSpec.Value]; exists {
-					result.value = val
-				} else {
-					missing = append(missing, fmt.Sprintf("%s (local) -> %s", envKey, localSpec.Value))
-					continue
-				}
-			} else {
-				result.value = localSpec.Value
-			}
-			results = append(results, result)
+		if localResult, missingLocal := processEnvironmentMapping(envKey, mapping, config.EnvLocal, localSecrets); localResult != nil {
+			results = append(results, *localResult)
+		} else if missingLocal != "" {
+			missing = append(missing, missingLocal)
 		}
 
 		// Process docker environment
-		if dockerSpec := mapping.GetValueSpec(config.EnvDocker); dockerSpec != nil {
-			result := secretResult{
-				key:         envKey,
-				environment: config.EnvDocker,
-			}
-			if dockerSpec.IsKeyvaultSecret() {
-				if val, exists := localSecrets[dockerSpec.Value]; exists {
-					result.value = val
-				} else {
-					missing = append(missing, fmt.Sprintf("%s (docker) -> %s", envKey, dockerSpec.Value))
-					continue
-				}
-			} else {
-				result.value = dockerSpec.Value
-			}
-			results = append(results, result)
+		if dockerResult, missingDocker := processEnvironmentMapping(envKey, mapping, config.EnvDocker, localSecrets); dockerResult != nil {
+			results = append(results, *dockerResult)
+		} else if missingDocker != "" {
+			missing = append(missing, missingDocker)
 		}
 	}
 
-	return results, missing, nil
+	return results, missing
+}
+
+func processEnvironmentMapping(envKey string, mapping config.Mapping, environment config.Environment, localSecrets map[string]string) (*secretResult, string) {
+	spec := mapping.GetValueSpec(environment)
+	if spec == nil {
+		return nil, ""
+	}
+
+	result := secretResult{
+		key:         envKey,
+		environment: environment,
+	}
+
+	if spec.IsKeyvaultSecret() {
+		if val, exists := localSecrets[spec.Value]; exists {
+			result.value = val
+			return &result, ""
+		}
+		return nil, fmt.Sprintf("%s (%s) -> %s", envKey, environment, spec.Value)
+	}
+	result.value = spec.Value
+	return &result, ""
 }
 
 func fetchKeyVaultSecret(ctx context.Context, fctx *fetchContext, secretName string, cache map[string]string, missing *[]string, mu *sync.Mutex) error {
@@ -208,6 +208,15 @@ func buildEnvMaps(results []secretResult, cfg *config.Config) (map[string]string
 	dockerMap := make(map[string]string) // docker environment
 
 	// Group results by environment
+	populateEnvMapsFromResults(results, envMap, dockerMap)
+
+	// Handle mappings that don't have environment-specific values
+	fillMissingMappings(cfg, envMap, dockerMap)
+
+	return envMap, dockerMap
+}
+
+func populateEnvMapsFromResults(results []secretResult, envMap, dockerMap map[string]string) {
 	for _, r := range results {
 		switch r.environment {
 		case config.EnvLocal:
@@ -216,37 +225,36 @@ func buildEnvMaps(results []secretResult, cfg *config.Config) (map[string]string
 			dockerMap[r.key] = r.value
 		}
 	}
+}
 
-	// Handle mappings that don't have environment-specific values
-	// (fallback to global values or legacy format)
+func fillMissingMappings(cfg *config.Config, envMap, dockerMap map[string]string) {
 	for envKey, mapping := range cfg.Mappings {
-		// For local environment
-		if _, exists := envMap[envKey]; !exists {
-			if spec := mapping.GetValueSpec(config.EnvLocal); spec != nil {
-				if spec.IsLiteral() {
-					envMap[envKey] = spec.Value
-				}
-				// Keyvault values should already be in results
-			}
-		}
+		fillMissingLocalMapping(envKey, mapping, envMap)
+		fillMissingDockerMapping(envKey, mapping, dockerMap, envMap)
+	}
+}
 
-		// For docker environment
-		if _, exists := dockerMap[envKey]; !exists {
-			if spec := mapping.GetValueSpec(config.EnvDocker); spec != nil {
-				if spec.IsLiteral() {
-					dockerMap[envKey] = spec.Value
-				}
-				// Keyvault values should already be in results
-			} else {
-				// If no docker-specific value, fall back to local
-				if localVal, hasLocal := envMap[envKey]; hasLocal {
-					dockerMap[envKey] = localVal
-				}
+func fillMissingLocalMapping(envKey string, mapping config.Mapping, envMap map[string]string) {
+	if _, exists := envMap[envKey]; !exists {
+		if spec := mapping.GetValueSpec(config.EnvLocal); spec != nil && spec.IsLiteral() {
+			envMap[envKey] = spec.Value
+		}
+	}
+}
+
+func fillMissingDockerMapping(envKey string, mapping config.Mapping, dockerMap, envMap map[string]string) {
+	if _, exists := dockerMap[envKey]; !exists {
+		if spec := mapping.GetValueSpec(config.EnvDocker); spec != nil {
+			if spec.IsLiteral() {
+				dockerMap[envKey] = spec.Value
+			}
+		} else {
+			// If no docker-specific value, fall back to local
+			if localVal, hasLocal := envMap[envKey]; hasLocal {
+				dockerMap[envKey] = localVal
 			}
 		}
 	}
-
-	return envMap, dockerMap
 }
 
 func writeEnvFiles(envMap, dockerMap map[string]string, fctx *fetchContext) error {

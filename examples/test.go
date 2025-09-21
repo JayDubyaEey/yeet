@@ -11,16 +11,16 @@ func main() {
 	fmt.Println("🔍 Application Environment Variables")
 	fmt.Println("=" + strings.Repeat("=", 50))
 
-	// Get all environment variables
 	envVars := os.Environ()
-
-	// Sort them for easier reading
 	sort.Strings(envVars)
 
-	// Track custom/non-system variables
-	customVars := []string{}
+	customVars := filterCustomVars(envVars)
+	displayResults(customVars, envVars)
+	checkCommonAppVars()
+	displayUsage()
+}
 
-	// Common system environment variable prefixes to filter out
+func filterCustomVars(envVars []string) []string {
 	systemPrefixes := []string{
 		"PATH", "HOME", "USER", "SHELL", "TERM", "PWD", "OLDPWD",
 		"LANG", "LC_", "XDG_", "DISPLAY", "TMPDIR", "TMP", "TEMP",
@@ -29,6 +29,7 @@ func main() {
 		"EDITOR", "PAGER", "LESS", "MORE", "MANPATH", "INFOPATH",
 	}
 
+	var customVars []string
 	for _, env := range envVars {
 		parts := strings.SplitN(env, "=", 2)
 		if len(parts) != 2 {
@@ -36,8 +37,6 @@ func main() {
 		}
 
 		key := parts[0]
-
-		// Check if it's likely a system variable
 		isSystem := false
 		for _, prefix := range systemPrefixes {
 			if strings.HasPrefix(key, prefix) {
@@ -50,8 +49,10 @@ func main() {
 			customVars = append(customVars, env)
 		}
 	}
+	return customVars
+}
 
-	// Display application variables
+func displayResults(customVars, envVars []string) {
 	if len(customVars) > 0 {
 		fmt.Printf("📊 Found %d application variables:\n\n", len(customVars))
 		fmt.Println("🎯 Application Variables:")
@@ -61,7 +62,6 @@ func main() {
 			key := parts[0]
 			value := parts[1]
 
-			// Truncate very long values for readability
 			if len(value) > 100 {
 				value = value[:97] + "..."
 			}
@@ -75,12 +75,12 @@ func main() {
 		fmt.Println()
 	}
 
-	// Summary
 	fmt.Println("📋 Summary:")
 	fmt.Printf("  • Application variables: %d\n", len(customVars))
 	fmt.Printf("  • Total variables found: %d\n", len(envVars))
+}
 
-	// Check for common application variables
+func checkCommonAppVars() {
 	fmt.Println("\n🔍 Looking for common application variables:")
 	commonAppVars := []string{
 		"DATABASE_URL", "DB_HOST", "DB_USER", "DB_PASSWORD", "DB_NAME",
@@ -107,7 +107,9 @@ func main() {
 	if !found {
 		fmt.Println("  No common application variables found")
 	}
+}
 
+func displayUsage() {
 	fmt.Println("\n💡 Usage:")
 	fmt.Println("  go run test-env.go                    # Show application variables only")
 	fmt.Println("  source .env && go run test-env.go     # Test with .env file")

@@ -160,14 +160,9 @@ func handleCommandError(err error) error {
 
 func fetchSecretsAsEnv(ctx context.Context, cfg *config.Config, vault string, prov *azcli.Provider) (map[string]string, error) {
 	// Parse target environment
-	var env config.Environment
-	switch targetEnv {
-	case "local":
-		env = config.EnvLocal
-	case "docker":
-		env = config.EnvDocker
-	default:
-		return nil, fmt.Errorf("invalid environment %q: must be 'local' or 'docker'", targetEnv)
+	env, err := parseTargetEnvironment()
+	if err != nil {
+		return nil, err
 	}
 
 	envVars := make(map[string]string)
@@ -179,43 +174,75 @@ func fetchSecretsAsEnv(ctx context.Context, cfg *config.Config, vault string, pr
 	var mu sync.Mutex
 
 	// First pass: collect all unique keyvault secrets we need
+	secretsToFetch := collectUniqueSecrets(cfg, env)
+
+	// Fetch all required secrets
+	if err := fetchRequiredSecrets(gctx, g, sem, prov, vault, secretsToFetch, secretCache, &missing, &mu); err != nil {
+		return nil, err
+	}
+
+	// Second pass: build environment variables
+	buildEnvironmentVariables(cfg, env, secretCache, envVars, &missing)
+
+	if len(missing) > 0 {
+		return nil, reportMissingValues(missing, env)
+	}
+
+	return envVars, nil
+}
+
+func parseTargetEnvironment() (config.Environment, error) {
+	switch targetEnv {
+	case "local":
+		return config.EnvLocal, nil
+	case "docker":
+		return config.EnvDocker, nil
+	default:
+		return "", fmt.Errorf("invalid environment %q: must be 'local' or 'docker'", targetEnv)
+	}
+}
+
+func collectUniqueSecrets(cfg *config.Config, env config.Environment) map[string]bool {
 	secretsToFetch := make(map[string]bool)
 	for _, mapping := range cfg.Mappings {
 		if spec := mapping.GetValueSpec(env); spec != nil && spec.IsKeyvaultSecret() {
 			secretsToFetch[spec.Value] = true
 		}
 	}
+	return secretsToFetch
+}
 
-	// Fetch all required secrets
+func fetchRequiredSecrets(gctx context.Context, g *errgroup.Group, sem chan struct{}, prov *azcli.Provider, vault string, secretsToFetch map[string]bool, secretCache map[string]string, missing *[]string, mu *sync.Mutex) error {
 	for secretName := range secretsToFetch {
 		secretName := secretName
 		sem <- struct{}{}
 		g.Go(func() error {
 			defer func() { <-sem }()
-
-			val, err := prov.GetSecret(gctx, vault, secretName)
-			if err != nil {
-				if azcli.IsNotFound(err) {
-					mu.Lock()
-					missing = append(missing, fmt.Sprintf("secret: %s", secretName))
-					mu.Unlock()
-					return nil
-				}
-				return fmt.Errorf("failed to get secret %s: %w", secretName, err)
-			}
-
-			mu.Lock()
-			secretCache[secretName] = val
-			mu.Unlock()
-			return nil
+			return fetchSingleSecret(gctx, prov, vault, secretName, secretCache, missing, mu)
 		})
 	}
+	return g.Wait()
+}
 
-	if err := g.Wait(); err != nil {
-		return nil, err
+func fetchSingleSecret(ctx context.Context, prov *azcli.Provider, vault, secretName string, secretCache map[string]string, missing *[]string, mu *sync.Mutex) error {
+	val, err := prov.GetSecret(ctx, vault, secretName)
+	if err != nil {
+		if azcli.IsNotFound(err) {
+			mu.Lock()
+			*missing = append(*missing, fmt.Sprintf("secret: %s", secretName))
+			mu.Unlock()
+			return nil
+		}
+		return fmt.Errorf("failed to get secret %s: %w", secretName, err)
 	}
 
-	// Second pass: build environment variables
+	mu.Lock()
+	secretCache[secretName] = val
+	mu.Unlock()
+	return nil
+}
+
+func buildEnvironmentVariables(cfg *config.Config, env config.Environment, secretCache map[string]string, envVars map[string]string, missing *[]string) {
 	for envKey, mapping := range cfg.Mappings {
 		spec := mapping.GetValueSpec(env)
 		if spec == nil {
@@ -226,22 +253,20 @@ func fetchSecretsAsEnv(ctx context.Context, cfg *config.Config, vault string, pr
 			if val, exists := secretCache[spec.Value]; exists {
 				envVars[envKey] = val
 			} else {
-				missing = append(missing, fmt.Sprintf("%s (%s) -> %s", envKey, env, spec.Value))
+				*missing = append(*missing, fmt.Sprintf("%s (%s) -> %s", envKey, env, spec.Value))
 			}
 		} else if spec.IsLiteral() {
 			envVars[envKey] = spec.Value
 		}
 	}
+}
 
-	if len(missing) > 0 {
-		ui.Error("missing %d values for environment %s:", len(missing), env)
-		for _, m := range missing {
-			ui.Error("  - %s", m)
-		}
-		return nil, fmt.Errorf("one or more values are missing")
+func reportMissingValues(missing []string, env config.Environment) error {
+	ui.Error("missing %d values for environment %s:", len(missing), env)
+	for _, m := range missing {
+		ui.Error("  - %s", m)
 	}
-
-	return envVars, nil
+	return fmt.Errorf("one or more values are missing")
 }
 
 func loadEnvOverrides(path string) (map[string]string, error) {

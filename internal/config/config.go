@@ -168,11 +168,25 @@ func validateConfig(cfg *Config) error {
 
 // validateMapping validates a single mapping
 func validateMapping(key string, mapping Mapping) error {
+	if err := validateEnvironmentVarName(key); err != nil {
+		return err
+	}
+
+	if err := validateMappingHasValues(key, mapping); err != nil {
+		return err
+	}
+
+	return validateIndividualSpecs(key, mapping)
+}
+
+func validateEnvironmentVarName(key string) error {
 	if !envVarRegex.MatchString(key) {
 		return fmt.Errorf("invalid env var name: %s (must match ^[A-Z_][A-Z0-9_]*$)", key)
 	}
+	return nil
+}
 
-	// Check if we have any valid configuration
+func validateMappingHasValues(key string, mapping Mapping) error {
 	hasLocal := mapping.Local != nil
 	hasDocker := mapping.Docker != nil
 	hasGlobal := mapping.Type != "" && mapping.Value != ""
@@ -180,25 +194,26 @@ func validateMapping(key string, mapping Mapping) error {
 	if !hasLocal && !hasDocker && !hasGlobal {
 		return fmt.Errorf("mapping for %s must have at least one value specification", key)
 	}
+	return nil
+}
 
-	// Validate individual value specs
-	if hasLocal {
+func validateIndividualSpecs(key string, mapping Mapping) error {
+	if mapping.Local != nil {
 		if err := validateValueSpec(key, "local", mapping.Local); err != nil {
 			return err
 		}
 	}
-	if hasDocker {
+	if mapping.Docker != nil {
 		if err := validateValueSpec(key, "docker", mapping.Docker); err != nil {
 			return err
 		}
 	}
-	if hasGlobal {
+	if mapping.Type != "" && mapping.Value != "" {
 		globalSpec := &ValueSpec{Type: mapping.Type, Value: mapping.Value}
 		if err := validateValueSpec(key, "global", globalSpec); err != nil {
 			return err
 		}
 	}
-
 	return nil
 }
 

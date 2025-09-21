@@ -221,45 +221,56 @@ func displayComparisonResult(result ComparisonResult, deploymentFile string) {
 	ui.Info("🔍 Comparing configuration with deployment: %s", deploymentFile)
 	fmt.Println()
 
-	// Summary
+	displaySummary(result)
+	displayMatchingVariables(result.Matching)
+	displayConfigOnlyVariables(result.InConfigOnly)
+	displayDeploymentOnlyVariables(result.InDeploymentOnly)
+	displayOverallStatus(result)
+}
+
+func displaySummary(result ComparisonResult) {
 	ui.Info("📊 Summary:")
 	fmt.Printf("  • Configuration variables: %d\n", len(result.ConfigVars))
 	fmt.Printf("  • Deployment variables:    %d\n", len(result.DeploymentVars))
 	fmt.Printf("  • Matching variables:      %d\n", len(result.Matching))
 	fmt.Println()
+}
 
-	// Matching variables (success)
-	if len(result.Matching) > 0 {
-		ui.Success("✅ Variables present in both config and deployment (%d):", len(result.Matching))
-		for _, v := range result.Matching {
+func displayMatchingVariables(matching []string) {
+	if len(matching) > 0 {
+		ui.Success("✅ Variables present in both config and deployment (%d):", len(matching))
+		for _, v := range matching {
 			fmt.Printf("  ✓ %s\n", v)
 		}
 		fmt.Println()
 	}
+}
 
-	// Variables in config but not in deployment (potential issue)
-	if len(result.InConfigOnly) > 0 {
-		ui.Warn("⚠️  Variables in configuration but NOT used in deployment (%d):", len(result.InConfigOnly))
-		for _, v := range result.InConfigOnly {
+func displayConfigOnlyVariables(configOnly []string) {
+	if len(configOnly) > 0 {
+		ui.Warn("⚠️  Variables in configuration but NOT used in deployment (%d):", len(configOnly))
+		for _, v := range configOnly {
 			fmt.Printf("  ⚠ %s\n", v)
 		}
 		ui.Warn("These variables are configured but not used in your Kubernetes deployment.")
 		ui.Warn("Consider removing them from config or adding them to the deployment.")
 		fmt.Println()
 	}
+}
 
-	// Variables in deployment but not in config (potential issue)
-	if len(result.InDeploymentOnly) > 0 {
-		ui.Warn("⚠️  Variables in deployment but NOT defined in configuration (%d):", len(result.InDeploymentOnly))
-		for _, v := range result.InDeploymentOnly {
+func displayDeploymentOnlyVariables(deploymentOnly []string) {
+	if len(deploymentOnly) > 0 {
+		ui.Warn("⚠️  Variables in deployment but NOT defined in configuration (%d):", len(deploymentOnly))
+		for _, v := range deploymentOnly {
 			fmt.Printf("  ⚠ %s\n", v)
 		}
 		ui.Warn("These variables are used in deployment but not managed by yeet.")
 		ui.Warn("Consider adding them to your env.config.json if they should be managed.")
 		fmt.Println()
 	}
+}
 
-	// Overall status
+func displayOverallStatus(result ComparisonResult) {
 	if len(result.InConfigOnly) == 0 && len(result.InDeploymentOnly) == 0 {
 		ui.Success("🎉 Perfect match! All variables are consistent between config and deployment.")
 	} else {
