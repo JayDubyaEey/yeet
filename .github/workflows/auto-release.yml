@@ -1,0 +1,125 @@
+name: Auto Release
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - '**.md'
+      - '.github/workflows/**'
+      - '.gitignore'
+      - 'LICENSE'
+
+permissions:
+  contents: write
+  pull-requests: read
+
+jobs:
+  check-changes:
+    name: Check for Changes
+    runs-on: ubuntu-latest
+    outputs:
+      should_release: ${{ steps.check.outputs.should_release }}
+      
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check if release needed
+        id: check
+        run: |
+          # Get the latest tag
+          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          echo "Latest tag: $LATEST_TAG"
+          
+          # Check if there are any code changes since the last tag
+          if git diff --quiet $LATEST_TAG HEAD -- '*.go' 'go.mod' 'go.sum'; then
+            echo "No code changes since $LATEST_TAG"
+            echo "should_release=false" >> $GITHUB_OUTPUT
+          else
+            echo "Code changes detected since $LATEST_TAG"
+            echo "should_release=true" >> $GITHUB_OUTPUT
+          fi
+
+  auto-release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    needs: check-changes
+    if: needs.check-changes.outputs.should_release == 'true'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+
+      - name: Run tests
+        run: go test -v ./...
+
+      - name: Get next version
+        id: version
+        run: |
+          # Get the latest tag
+          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          
+          # Remove 'v' prefix and split into major.minor.patch
+          VERSION=${LATEST_TAG#v}
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
+          
+          # Default versioning: increment patch
+          NEW_PATCH=$((PATCH + 1))
+          
+          # Check commit messages for version hints
+          COMMITS=$(git log $LATEST_TAG..HEAD --pretty=format:"%s")
+          
+          if echo "$COMMITS" | grep -qiE "^(feat|feature)(\(.+\))?:"; then
+            # Feature commits increment minor version
+            NEW_MINOR=$((MINOR + 1))
+            NEW_PATCH=0
+            echo "Feature detected, incrementing minor version"
+          else
+            NEW_MINOR=$MINOR
+          fi
+          
+          if echo "$COMMITS" | grep -qiE "^(breaking|major)(\(.+\))?:|BREAKING CHANGE:"; then
+            # Breaking changes increment major version
+            MAJOR=$((MAJOR + 1))
+            NEW_MINOR=0
+            NEW_PATCH=0
+            echo "Breaking change detected, incrementing major version"
+          fi
+          
+          NEW_VERSION="v${MAJOR}.${NEW_MINOR}.${NEW_PATCH}"
+          echo "New version: $NEW_VERSION"
+          echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "version_without_v=${MAJOR}.${NEW_MINOR}.${NEW_PATCH}" >> $GITHUB_OUTPUT
+
+      - name: Generate release notes
+        id: release_notes
+        run: |
+          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          echo "Latest tag: $LATEST_TAG"
+          echo "New version: ${{ steps.version.outputs.version }}"
+
+      - name: Create tag
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git tag -a ${{ steps.version.outputs.version }} -m "Release ${{ steps.version.outputs.version }}"
+          git push origin ${{ steps.version.outputs.version }}
+
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v5
+        with:
+          version: latest
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
