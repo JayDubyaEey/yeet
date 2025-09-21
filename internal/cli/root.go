@@ -38,12 +38,10 @@ func newRootCmd() *cobra.Command {
 	cmd.Version = version.Version + fmt.Sprintf(" (%s/%s)", runtime.GOOS, runtime.GOARCH)
 
 	cmd.AddCommand(newFetchCmd())
-	cmd.AddCommand(newRefreshCmd())
 	cmd.AddCommand(newRunCmd())
-	cmd.AddCommand(newLoginCmd())
-	cmd.AddCommand(newLogoutCmd())
 	cmd.AddCommand(newValidateCmd())
 	cmd.AddCommand(newListCmd())
+	cmd.AddCommand(newCompareCmd())
 
 	return cmd
 }

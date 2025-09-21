@@ -16,6 +16,7 @@ Yeet pulls secrets from Azure Key Vault and generates `.env` and `docker.env` fi
 - 🔄 Supports simple and complex mappings with docker-specific overrides
 - ⚡ Concurrent secret fetching for speed
 - 🔍 Validates configuration and checks secret existence
+- 📊 Compare configuration with Kubernetes deployment files
 - ⚠️  Warns about unmapped environment variables
 - 🎯 Perfect for Makefiles and CI/CD pipelines
 
@@ -113,34 +114,68 @@ az keyvault list -o table
 
 ## Configuration
 
-Create an `env.config.json` file in your project directory:
+Create an `env.config.json` file in your project directory. Yeet supports both simple and advanced configuration formats:
+
+### Enhanced Configuration Format (Recommended)
+
+The enhanced format allows you to specify different values for local development vs Docker environments, and distinguish between Key Vault secrets and literal values:
 
 ```json
 {
   "keyVaultName": "my-keyvault-name",
   "mappings": {
-    "DATABASE_URL": "postgres-connection-string",
-    "REDIS_URL": "redis-connection-string",
-    "API_KEY": "api-key",
-    "JWT_SECRET": {
-      "secret": "jwt-secret-key",
-      "docker": "local-dev-jwt-secret"
+    "DATABASE_URL": {
+      "local": {
+        "type": "keyvault",
+        "value": "postgres-connection-string"
+      },
+      "docker": {
+        "type": "keyvault", 
+        "value": "postgres-docker-connection-string"
+      }
     },
-    "LOG_LEVEL": {
-      "secret": "log-level"
-    }
+    "REDIS_URL": {
+      "local": {
+        "type": "keyvault",
+        "value": "redis-connection-string"
+      },
+      "docker": {
+        "type": "literal",
+        "value": "redis://redis:6379"
+      }
+    },
+    "JWT_SECRET": {
+      "local": {
+        "type": "literal",
+        "value": "local-dev-secret-123"
+      },
+      "docker": {
+        "type": "keyvault",
+        "value": "jwt-secret-production"
+      }
+    },
+    "PORT": {
+      "type": "literal",
+      "value": "8080"
+    },
+    "SIMPLE_VAR": "simple-keyvault-secret"
   }
 }
 ```
 
-### Mapping Types
+### Configuration Options
 
-1. **Simple mapping**: `"ENV_VAR": "secret-name"`
-   - Both `.env` and `docker.env` will use the secret value
+#### Environment-Specific Values
+- **`local`**: Values used for local development (`.env` file and `yeet run --env local`)
+- **`docker`**: Values used for Docker environments (`docker.env` file and `yeet run --env docker`)
 
-2. **Complex mapping**: `"ENV_VAR": { "secret": "secret-name", "docker": "override-value" }`
-   - `.env` uses the secret value
-   - `docker.env` uses the override value
+#### Value Types
+- **`keyvault`**: Fetch value from Azure Key Vault using the specified secret name
+- **`literal`**: Use the specified value directly (no Key Vault lookup)
+
+#### Global Values
+- **`type` + `value`**: Applied to both environments when no environment-specific config exists
+- **Simple string**: Shorthand for `{"type": "keyvault", "value": "secret-name"}`
 
 ## Usage
 
@@ -153,17 +188,20 @@ yeet login --tenant YOUR_TENANT --subscription YOUR_SUBSCRIPTION
 
 ### Run Commands with Secrets
 ```bash
-# Run a command with secrets as environment variables (no .env file created)
+# Run with local environment (default)
 yeet run make dev
 yeet run npm start
-yeet run -- docker-compose up
+
+# Run with docker environment
+yeet run --env docker docker-compose up
+yeet run -e docker -- docker-compose up
 
 # Use a different vault
 yeet run --vault production-vault make deploy
 
 # Load .env file for local overrides
 yeet run --load-env make dev
-yeet run -e --env-file custom.env npm test
+yeet run -l --env-file custom.env npm test
 ```
 
 ### Fetch Secrets
@@ -199,8 +237,30 @@ yeet list --exists-only
 yeet list --raw
 ```
 
+### Compare with Kubernetes Deployments
+```bash
+# Compare config with Kubernetes deployment file
+yeet compare
+
+# Specify custom deployment file path
+yeet compare --deployment-path path/to/deployment.yml
+
+# Use different environment for comparison
+yeet compare --env docker
+```
+
+The compare command analyzes your configuration against Kubernetes deployment files and shows:
+- Variables in your config but missing from the deployment
+- Variables in the deployment but missing from your config
+- Environment variable mismatches and recommendations
+
+This helps ensure your configuration stays in sync with your Kubernetes deployments.
+
 ### Other Commands
 ```bash
+# Compare with Kubernetes deployment files
+yeet compare
+
 # Refresh environment files (same as fetch)
 yeet refresh
 
@@ -215,10 +275,77 @@ yeet --help
 yeet fetch --help
 ```
 
+## Kubernetes Integration
+
+### Comparing with Deployment Files
+
+Yeet can compare your configuration with Kubernetes deployment files to ensure your environment variables are properly aligned:
+
+```bash
+# Compare with default deployment file (deploy/base/deployment.yml)
+yeet compare
+
+# Compare with custom deployment file
+yeet compare --deployment-path k8s/production/deployment.yaml
+
+# Compare using docker environment settings
+yeet compare --env docker --deployment-path k8s/staging/deployment.yaml
+```
+
+#### What the Compare Command Checks
+
+The compare command analyzes both your `env.config.json` and Kubernetes deployment YAML files to identify:
+
+1. **Missing in Deployment**: Variables defined in your config but not present in the Kubernetes deployment
+2. **Missing in Config**: Environment variables in the deployment that aren't defined in your config
+3. **Value Type Mismatches**: Helps identify when you're using literal values vs secrets in different environments
+
+#### Example Output
+
+```bash
+$ yeet compare
+✅ Configuration loaded successfully
+✅ Deployment file loaded: deploy/base/deployment.yml
+
+📊 Comparison Results:
+
+❌ Variables in config but missing from deployment:
+  • REDIS_URL
+  • API_KEY
+
+⚠️  Variables in deployment but missing from config:
+  • USER_SERVICE_BASE_URL
+  • POSTGRES_DATABASE
+
+✅ Matching variables (5):
+  • LOG_LEVEL
+  • JWT_SECRET
+  • POSTGRES_HOST
+  • POSTGRES_PORT
+  • POSTGRES_PASSWORD
+
+💡 Recommendations:
+  • Add missing variables to your Kubernetes deployment
+  • Consider adding USER_SERVICE_BASE_URL to your config if needed
+  • Review if POSTGRES_DATABASE should be configurable
+```
+
+#### Supported Kubernetes Resources
+
+The compare command supports:
+- **Deployments** - Extracts env vars from container specifications
+- **StatefulSets** - Analyzes environment variables in pod templates
+- **DaemonSets** - Checks environment configuration across daemon pods
+- **Jobs/CronJobs** - Validates job container environment variables
+
+It handles both direct environment variable values and references to ConfigMaps/Secrets via `valueFrom`.
+
 ## Global Flags
 
 - `--config` - Path to configuration file (default: `env.config.json`)
 - `--vault` - Override Key Vault name from config
+- `--env` - Environment to use (local/docker, default: local)
+- `--deployment-path` - Path to Kubernetes deployment file (compare command)
 - `--no-color` - Disable colored output
 - `-v, --verbose` - Enable verbose logging
 

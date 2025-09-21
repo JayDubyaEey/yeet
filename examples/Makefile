@@ -11,7 +11,7 @@ dev-old:
 # New approach - no .env file needed!
 dev:
 	@echo "Starting development server with secrets from Key Vault..."
-	@yeet run npm start
+	@yeet run -- go run ./test-env.go
 
 # Run with a specific vault
 dev-staging:
@@ -23,7 +23,7 @@ dev-local:
 
 # Run tests with secrets
 test:
-	@yeet run npm test
+	@yeet run -- go test ./...
 
 # Run docker-compose with secrets
 up:
