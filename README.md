@@ -18,6 +18,7 @@ Yeet pulls secrets from Azure Key Vault and generates `.env` and `docker.env` fi
 - 🔍 Validates configuration and checks secret existence
 - 📊 Compare configuration with Kubernetes deployment files
 - ⚠️  Warns about unmapped environment variables
+- 🔄 Self-update capability for easy version management
 - 🎯 Perfect for Makefiles and CI/CD pipelines
 
 ## Prerequisites
@@ -92,6 +93,42 @@ git clone https://github.com/JayDubyaEey/yeet
 cd yeet
 go build -o yeet ./cmd/main.go
 sudo mv yeet /usr/local/bin/
+```
+
+## Updating Yeet
+
+Yeet can update itself automatically to the latest version:
+
+```bash
+# Update to the latest version
+yeet update
+
+# Update to a specific version
+yeet update --version v1.2.3
+
+# Force reinstall current version
+yeet update --force
+```
+
+The update command will:
+- Check GitHub for the latest release
+- Download the appropriate binary for your platform
+- Verify the checksum for security
+- Replace the current binary with the new version
+
+**Note**: If yeet is installed in a system directory (like `/usr/local/bin`), you may need elevated permissions:
+```bash
+sudo yeet update
+```
+
+If you built yeet from source, the update command will notify you to use `go install` instead.
+
+### GitHub API Rate Limiting
+
+If you encounter GitHub API rate limiting, you can set a GitHub token:
+```bash
+export GITHUB_TOKEN=your_github_token
+yeet update
 ```
 
 ## Verify Dependencies
@@ -258,6 +295,15 @@ This helps ensure your configuration stays in sync with your Kubernetes deployme
 
 ### Other Commands
 ```bash
+# Update to the latest version
+yeet update
+
+# Update to a specific version
+yeet update --version v1.2.3
+
+# Force reinstall current version
+yeet update --force
+
 # Compare with Kubernetes deployment files
 yeet compare
 
@@ -268,7 +314,7 @@ yeet refresh
 yeet logout
 
 # Show version
-yeet version
+yeet --version
 
 # Help
 yeet --help
